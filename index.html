@@ -8,13 +8,14 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,900;1,600&family=Special+Elite&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <header class="masthead">
+  <span class="masthead__price">Pris: Gratis</span>
   <div class="masthead__rule"></div>
   <div class="masthead__row">
     <span class="masthead__eyebrow" id="edition-date">—</span>
@@ -22,7 +23,9 @@
     <span class="masthead__eyebrow" id="edition-number">No. —</span>
   </div>
   <p class="masthead__deck">To redaksjoner. Én ukentlig kappestrid. Resultatene, svart på hvitt.</p>
+  <p class="masthead__quote" id="masthead-quote">—</p>
   <div class="masthead__rule masthead__rule--thick"></div>
+  <button class="print-btn" id="print-btn" type="button">&#128424; Skriv ut dagens utgave</button>
 </header>
 
 <nav class="tabs" role="tablist" aria-label="Velg visning">
@@ -52,6 +55,7 @@
           <p class="week-tag" id="ap-week-tag">—</p>
           <button class="week-nav__btn" id="ap-next" aria-label="Neste uke">&#8250;</button>
         </div>
+        <span class="record-badge" id="ap-record" hidden>&#127942; Personlig rekord!</span>
 
         <div class="chart-frame chart-frame--week">
           <canvas id="ap-week-chart" role="img" aria-label="Denne ukens Aftenposten-resultater, dag for dag"></canvas>
@@ -88,6 +92,10 @@
             <span class="score-big__den">/ 20</span>
           </div>
           <p class="score-verdict" id="mb-verdict">Venter på denne ukens resultat …</p>
+          <div class="badge-row">
+            <span class="record-badge" id="mb-record" hidden>&#127942; Personlig rekord!</span>
+            <span class="streak-badge" id="mb-streak" hidden></span>
+          </div>
         </div>
       </div>
 
@@ -103,8 +111,8 @@
       </div>
 
       <div class="legend-row">
-        <span class="legend-chip"><i style="background:#B3222A"></i>Aftenposten (ukesnitt)</span>
-        <span class="legend-chip"><i style="background:#A9812F"></i>Morgenbladet (poeng)</span>
+        <span class="legend-chip"><i style="background:#7B2D26"></i>Aftenposten (ukesnitt)</span>
+        <span class="legend-chip"><i style="background:#8C6A2B"></i>Morgenbladet (poeng)</span>
       </div>
 
       <div class="chart-frame chart-frame--wide">
