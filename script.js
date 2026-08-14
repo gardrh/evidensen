@@ -3,7 +3,6 @@
 
    1. Open your Google Sheet.
    2. Share ▸ General access ▸ "Anyone with the link" ▸ Viewer.
-      (Publishing to the web also works, but link-sharing is enough.)
    3. Copy the long ID from the sheet's URL:
       https://docs.google.com/spreadsheets/d/  >>THIS_PART<<  /edit
    4. If your data isn't on the first tab, open that tab and copy the
@@ -26,6 +25,7 @@ const COLS = {
 };
 
 const DATA_START_ROW = 2; // rows 0 and 1 are the two header rows
+const MB_MAX = 20;
 
 /* ========================================================= */
 
@@ -42,6 +42,7 @@ document.addEventListener("DOMContentLoaded", init);
 
 async function init() {
   setEdition();
+  setupTabs();
 
   let rows;
   try {
@@ -55,27 +56,33 @@ async function init() {
   }
 
   const dataRows = rows.slice(DATA_START_ROW);
+  const apWeeks = extractAftenpostenWeeks(dataRows);
+  const mbWeeks = extractMorgenbladetWeeks(dataRows);
 
-  const aftenposten = extractDaily(dataRows);
-  const morgenbladet = extractWeekly(dataRows);
+  renderThisWeek(apWeeks, mbWeeks);
+  renderOverTime(apWeeks, mbWeeks);
+}
 
-  renderSection({
-    points: aftenposten,
-    canvasId: "ap-chart",
-    emptyId: "ap-empty",
-    statsId: "ap-stats",
-    color: THEME.red,
-    unitLabel: "poeng",
-  });
+/* ---------- Tabs ---------- */
 
-  renderSection({
-    points: morgenbladet,
-    canvasId: "mb-chart",
-    emptyId: "mb-empty",
-    statsId: "mb-stats",
-    color: THEME.gold,
-    unitLabel: "poeng",
-  });
+function setupTabs() {
+  const tabWeek = document.getElementById("tab-week");
+  const tabOvertime = document.getElementById("tab-overtime");
+  const viewWeek = document.getElementById("view-week");
+  const viewOvertime = document.getElementById("view-overtime");
+
+  function activate(tab) {
+    const showWeek = tab === "week";
+    viewWeek.hidden = !showWeek;
+    viewOvertime.hidden = showWeek;
+    tabWeek.classList.toggle("is-active", showWeek);
+    tabOvertime.classList.toggle("is-active", !showWeek);
+    tabWeek.setAttribute("aria-selected", String(showWeek));
+    tabOvertime.setAttribute("aria-selected", String(!showWeek));
+  }
+
+  tabWeek.addEventListener("click", () => activate("week"));
+  tabOvertime.addEventListener("click", () => activate("overtime"));
 }
 
 /* ---------- Fetch + parse ---------- */
@@ -112,74 +119,198 @@ function parseCSV(text) {
   return rows;
 }
 
-function extractDaily(rows) {
-  const points = [];
+/* ---------- Extraction ----------
+   Both return an array of week objects, in sheet order (oldest to newest),
+   skipping weeks with no data at all. */
+
+function extractAftenpostenWeeks(rows) {
+  const weeks = [];
   for (const row of rows) {
     const week = (row[COLS.apWeek] || "").trim();
     if (!week) continue;
-    COLS.apDays.forEach((colIndex, i) => {
+    const days = COLS.apDays.map((colIndex, i) => {
       const raw = (row[colIndex] || "").trim();
-      if (raw === "") return;
+      if (raw === "") return null;
       const value = Number(raw.replace(",", "."));
-      if (Number.isNaN(value)) return;
-      points.push({ label: `U${week} ${COLS.apDayLabels[i]}`, value });
+      return Number.isNaN(value) ? null : value;
     });
+    if (days.every((d) => d === null)) continue;
+    weeks.push({ week, days });
   }
-  return points;
+  return weeks;
 }
 
-function extractWeekly(rows) {
-  const points = [];
+function extractMorgenbladetWeeks(rows) {
+  const weeks = [];
   for (const row of rows) {
     const week = (row[COLS.mbWeek] || "").trim();
     const raw = (row[COLS.mbScore] || "").trim();
     if (!week || raw === "") continue;
     const value = Number(raw.replace(",", "."));
     if (Number.isNaN(value)) continue;
-    points.push({ label: `U${week}`, value });
+    weeks.push({ week, score: value });
   }
-  return points;
+  return weeks;
 }
 
-/* ---------- Rendering ---------- */
+/* ---------- View: this week ---------- */
 
-function renderSection({ points, canvasId, emptyId, statsId, color, unitLabel }) {
-  const canvas = document.getElementById(canvasId);
-  const emptyMsg = document.getElementById(emptyId);
-  const statsEl = document.getElementById(statsId);
+function renderThisWeek(apWeeks, mbWeeks) {
+  renderAftenpostenWeek(apWeeks.length ? apWeeks[apWeeks.length - 1] : null);
+  renderMorgenbladetWeek(mbWeeks.length ? mbWeeks[mbWeeks.length - 1] : null);
+}
 
-  if (!points.length) {
+function renderAftenpostenWeek(current) {
+  const tag = document.getElementById("ap-week-tag");
+  const canvas = document.getElementById("ap-week-chart");
+  const emptyMsg = document.getElementById("ap-week-empty");
+  const statsEl = document.getElementById("ap-week-stats");
+
+  if (!current) {
+    tag.textContent = "Ingen data ennå";
     canvas.style.display = "none";
     emptyMsg.hidden = false;
     return;
   }
 
-  const values = points.map((p) => p.value);
-  const count = values.length;
-  const avg = values.reduce((a, b) => a + b, 0) / count;
-  const bestIndex = values.indexOf(Math.max(...values));
+  tag.textContent = `Uke ${current.week}`;
 
-  statsEl.querySelector('[data-stat="count"]').textContent = count;
-  statsEl.querySelector('[data-stat="avg"]').textContent = avg.toFixed(1);
-  statsEl.querySelector('[data-stat="best"]').textContent = `${values[bestIndex]}`;
+  const played = current.days.filter((d) => d !== null);
+  const sum = played.reduce((a, b) => a + b, 0);
+  const avg = played.length ? sum / played.length : 0;
+
+  statsEl.querySelector('[data-stat="sum"]').textContent = played.length ? sum : "–";
+  statsEl.querySelector('[data-stat="avg"]').textContent = played.length ? avg.toFixed(1) : "–";
+  statsEl.querySelector('[data-stat="days"]').textContent = `${played.length}/5`;
+
+  new Chart(canvas.getContext("2d"), {
+    type: "bar",
+    data: {
+      labels: COLS.apDayLabels,
+      datasets: [
+        {
+          data: current.days,
+          backgroundColor: THEME.red,
+          borderRadius: 2,
+          maxBarThickness: 42,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: THEME.ink,
+          bodyFont: { family: "IBM Plex Mono", size: 12, weight: "600" },
+          displayColors: false,
+          callbacks: {
+            label: (ctx) => (ctx.parsed.y === null ? "Ikke spilt" : `${ctx.parsed.y} poeng`),
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: THEME.inkSoft, font: { family: "IBM Plex Mono", size: 11 } },
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: THEME.rule },
+          border: { display: false },
+          ticks: { color: THEME.inkSoft, font: { family: "IBM Plex Mono", size: 10 }, precision: 0 },
+        },
+      },
+    },
+  });
+}
+
+function renderMorgenbladetWeek(current) {
+  const tag = document.getElementById("mb-week-tag");
+  const numEl = document.getElementById("mb-score-num");
+  const verdictEl = document.getElementById("mb-verdict");
+
+  if (!current) {
+    tag.textContent = "Ingen data ennå";
+    numEl.textContent = "–";
+    verdictEl.textContent = "Venter på denne ukens resultat …";
+    return;
+  }
+
+  tag.textContent = `Uke ${current.week}`;
+  numEl.textContent = current.score;
+  verdictEl.textContent = moodMessage(current.score);
+}
+
+function moodMessage(score) {
+  const pct = score / MB_MAX;
+  if (pct >= 0.9) return "Glitrende. Er du sikker på at du ikke jobber i redaksjonen?";
+  if (pct >= 0.7) return "Solid uke. Du følger tydeligvis med i tiden.";
+  if (pct >= 0.5) return "Middels. Godkjent, men Morgenbladet fortjener bedre.";
+  if (pct >= 0.25) return "Svakt. Har avisen egentlig blitt åpnet denne uken?";
+  return "Katastrofalt. Vurder et abonnement — eller i det minste overskriftene.";
+}
+
+/* ---------- View: over time ---------- */
+
+function renderOverTime(apWeeks, mbWeeks) {
+  const canvas = document.getElementById("overtime-chart");
+  const emptyMsg = document.getElementById("overtime-empty");
+
+  if (!apWeeks.length && !mbWeeks.length) {
+    canvas.style.display = "none";
+    emptyMsg.hidden = false;
+    return;
+  }
+
+  // Union of week labels, sorted numerically, oldest to newest.
+  const weekSet = new Set([
+    ...apWeeks.map((w) => w.week),
+    ...mbWeeks.map((w) => w.week),
+  ]);
+  const weeks = [...weekSet].sort((a, b) => Number(a) - Number(b));
+
+  const apByWeek = new Map(
+    apWeeks.map((w) => {
+      const played = w.days.filter((d) => d !== null);
+      const avg = played.length ? played.reduce((a, b) => a + b, 0) / played.length : null;
+      return [w.week, avg];
+    })
+  );
+  const mbByWeek = new Map(mbWeeks.map((w) => [w.week, w.score]));
+
+  const apSeries = weeks.map((w) => (apByWeek.has(w) ? round1(apByWeek.get(w)) : null));
+  const mbSeries = weeks.map((w) => (mbByWeek.has(w) ? mbByWeek.get(w) : null));
 
   new Chart(canvas.getContext("2d"), {
     type: "line",
     data: {
-      labels: points.map((p) => p.label),
+      labels: weeks.map((w) => `U${w}`),
       datasets: [
         {
-          data: values,
-          borderColor: color,
-          backgroundColor: hexToRgba(color, 0.12),
-          pointBackgroundColor: color,
-          pointBorderColor: THEME.paperRaised,
-          pointBorderWidth: 1.5,
-          pointRadius: points.length > 40 ? 0 : 3,
+          label: "Aftenposten (ukesnitt)",
+          data: apSeries,
+          borderColor: THEME.red,
+          backgroundColor: THEME.red,
+          pointRadius: 3,
           pointHoverRadius: 5,
           borderWidth: 2,
-          fill: true,
           tension: 0.25,
+          spanGaps: true,
+          yAxisID: "yAP",
+        },
+        {
+          label: "Morgenbladet (poeng)",
+          data: mbSeries,
+          borderColor: THEME.gold,
+          backgroundColor: THEME.gold,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          borderWidth: 2,
+          tension: 0.25,
+          spanGaps: true,
+          yAxisID: "yMB",
         },
       ],
     },
@@ -188,48 +319,43 @@ function renderSection({ points, canvasId, emptyId, statsId, color, unitLabel })
       maintainAspectRatio: false,
       interaction: { mode: "index", intersect: false },
       plugins: {
-        legend: { display: false },
+        legend: { display: false }, // shown via .legend-row instead
         tooltip: {
           backgroundColor: THEME.ink,
           titleFont: { family: "IBM Plex Mono", size: 11 },
           bodyFont: { family: "IBM Plex Mono", size: 12, weight: "600" },
           padding: 8,
-          displayColors: false,
-          callbacks: {
-            label: (ctx) => `${ctx.parsed.y} ${unitLabel}`,
-          },
         },
       },
       scales: {
         x: {
           grid: { display: false },
-          ticks: {
-            color: THEME.inkSoft,
-            font: { family: "IBM Plex Mono", size: 10 },
-            maxRotation: 0,
-            autoSkip: true,
-            maxTicksLimit: 8,
-          },
+          ticks: { color: THEME.inkSoft, font: { family: "IBM Plex Mono", size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 },
         },
-        y: {
+        yAP: {
+          position: "left",
           beginAtZero: true,
           grid: { color: THEME.rule },
           border: { display: false },
-          ticks: {
-            color: THEME.inkSoft,
-            font: { family: "IBM Plex Mono", size: 10 },
-            precision: 0,
-          },
+          ticks: { color: THEME.red, font: { family: "IBM Plex Mono", size: 10 } },
+          title: { display: true, text: "Aftenposten", color: THEME.red, font: { family: "IBM Plex Mono", size: 10 } },
+        },
+        yMB: {
+          position: "right",
+          beginAtZero: true,
+          max: MB_MAX,
+          grid: { display: false },
+          border: { display: false },
+          ticks: { color: THEME.gold, font: { family: "IBM Plex Mono", size: 10 } },
+          title: { display: true, text: "Morgenbladet", color: THEME.gold, font: { family: "IBM Plex Mono", size: 10 } },
         },
       },
     },
   });
 }
 
-function hexToRgba(hex, alpha) {
-  const n = parseInt(hex.slice(1), 16);
-  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+function round1(n) {
+  return n === null ? null : Math.round(n * 10) / 10;
 }
 
 /* ---------- Masthead date/edition ---------- */
