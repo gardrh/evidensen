@@ -184,13 +184,47 @@ main {
   margin: 2px 0 0;
 }
 
+.week-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--rule);
+}
+
 .week-tag {
   font-family: var(--font-mono);
   font-size: 0.75rem;
   color: var(--ink-soft);
-  margin: 0 0 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--rule);
+  margin: 0;
+  flex: 1;
+  text-align: center;
+}
+
+.week-nav__btn {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  line-height: 1;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  color: var(--ink);
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+  flex-shrink: 0;
+}
+
+.week-nav__btn:hover:not(:disabled) {
+  background: var(--paper);
+}
+
+.week-nav__btn:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 /* ---------- Stat row ---------- */
@@ -244,7 +278,6 @@ main {
 .chart-empty {
   position: absolute;
   inset: 0;
-  display: flex;
   align-items: center;
   justify-content: center;
   margin: 0;
@@ -253,6 +286,13 @@ main {
   color: var(--ink-soft);
   text-align: center;
   padding: 0 20px;
+}
+
+/* Only actually shown when the hidden attribute is absent — this is
+   the fix for the empty-state message rendering on top of a chart
+   that does have data. */
+.chart-empty:not([hidden]) {
+  display: flex;
 }
 
 /* ---------- Morgenbladet score block ---------- */
