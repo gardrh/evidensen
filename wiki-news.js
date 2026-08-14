@@ -1,39 +1,37 @@
 /* =========================================================
    Kontorquizen — "Aktuelt" from Norwegian Wikipedia
 
-   Pulls the current-events list from whichever "Aktuelt/..."
-   subtemplate is the main-headlines one, via the public MediaWiki
-   API. No API key needed — origin=* asks the API to allow the
-   request from any domain, which is how the read API supports
-   anonymous cross-site fetches.
+   Pulls the current-events list from the combined "Aktuelt" box
+   (Mal:Aktuelt) that powers no.wikipedia.org/wiki/Forside, via the
+   public MediaWiki API. No API key needed — origin=* asks the API
+   to allow the request from any domain, which is how the read API
+   supports anonymous cross-site fetches.
 
-   Deliberately excludes: Mal:Aktuelt/saker (background events),
-   Mal:Aktuelt/kultur (culture), Mal:Aktuelt/sport (sport),
-   Mal:Avdøde (deaths), Mal:Gode nye (new good articles),
-   Mal:Ukens artikkel (article of the week).
-
-   Rather than hardcoding the exact main-headlines subpage name
-   (which is easy to get wrong and silently break), this asks
-   Wikipedia itself: it fetches the full list of templates used on
-   Forside, finds the "Mal:Aktuelt/…" ones, and picks whichever
-   isn't on the exclude list above. Self-correcting if Wikipedia
-   ever renames things.
+   Mal:Aktuelt itself combines several sub-lists, some of which we
+   don't want here. Rather than guessing at a single "main headlines
+   only" subpage name (fragile — got a placeholder/doc page by
+   mistake last time), this fetches the combined box PLUS each
+   excluded sub-list individually, then removes any line from the
+   combined box whose text matches something from an excluded list:
+     - Mal:Aktuelt/saker    (background events)
+     - Mal:Aktuelt/kultur   (culture)
+     - Mal:Aktuelt/sport    (sport)
+     - Mal:Avdøde           (deaths)
+     - Mal:Gode nye         (new good articles)
+     - Mal:Ukens artikkel   (article of the week)
+   Whatever's left is the main headline items.
    ========================================================= */
 
 const WIKI_API_BASE = "https://no.wikipedia.org/w/api.php";
-
-const WIKI_EXCLUDED_TEMPLATES = [
-  "mal:aktuelt/saker",
-  "mal:aktuelt/kultur",
-  "mal:aktuelt/sport",
-  "mal:avdøde",
-  "mal:gode nye",
-  "mal:ukens artikkel",
+const WIKI_MAIN_PAGE = "Mal:Aktuelt";
+const WIKI_EXCLUDED_PAGES = [
+  "Mal:Aktuelt/saker",
+  "Mal:Aktuelt/kultur",
+  "Mal:Aktuelt/sport",
+  "Mal:Avdøde",
+  "Mal:Gode nye",
+  "Mal:Ukens artikkel",
 ];
-
-// Fallback guess, used only if the discovery step itself fails
-// (e.g. network hiccup) — best-effort, not load-bearing.
-const WIKI_FALLBACK_PAGE = "Mal:Aktuelt/hovedsaker";
 
 async function wikiApiFetch(params) {
   const url = `${WIKI_API_BASE}?${new URLSearchParams({
@@ -47,39 +45,13 @@ async function wikiApiFetch(params) {
   return res.json();
 }
 
-async function discoverAktueltHeadlinePage() {
-  const data = await wikiApiFetch({
-    action: "parse",
-    page: "Forside",
-    prop: "templates",
-  });
-  const templates = (data.parse && data.parse.templates) || [];
-  const candidates = templates
-    .map((t) => t.title)
-    .filter((title) => /^Mal:Aktuelt\//i.test(title))
-    .filter((title) => !WIKI_EXCLUDED_TEMPLATES.includes(title.toLowerCase()));
-  return candidates[0] || null;
-}
-
-async function fetchWikiAktuelt() {
-  let pageName = WIKI_FALLBACK_PAGE;
-  try {
-    const discovered = await discoverAktueltHeadlinePage();
-    if (discovered) pageName = discovered;
-  } catch (err) {
-    console.warn("Fant ikke Aktuelt-malen dynamisk, bruker reserveløsning.", err);
-  }
-
-  const data = await wikiApiFetch({
-    action: "parse",
-    page: pageName,
-    prop: "text",
-  });
+async function fetchPageListItems(page) {
+  const data = await wikiApiFetch({ action: "parse", page, prop: "text" });
   const html = data && data.parse && data.parse.text;
-  if (!html) throw new Error("Uventet svar fra Wikipedia API");
+  if (!html) return [];
 
   const doc = new DOMParser().parseFromString(html, "text/html");
-  const items = [...doc.querySelectorAll("li")]
+  return [...doc.querySelectorAll("li")]
     .map((li) => {
       const link = li.querySelector("a[href]");
       let url = link ? link.getAttribute("href") : null;
@@ -88,6 +60,14 @@ async function fetchWikiAktuelt() {
       return { text, url };
     })
     .filter((item) => item.text.length > 0);
+}
 
-  return items;
+async function fetchWikiAktuelt() {
+  const [combined, ...excludedLists] = await Promise.all([
+    fetchPageListItems(WIKI_MAIN_PAGE),
+    ...WIKI_EXCLUDED_PAGES.map((page) => fetchPageListItems(page).catch(() => [])),
+  ]);
+
+  const excludedTexts = new Set(excludedLists.flat().map((item) => item.text));
+  return combined.filter((item) => !excludedTexts.has(item.text));
 }
