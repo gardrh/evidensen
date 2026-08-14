@@ -28,8 +28,6 @@
   <button class="print-btn" id="print-btn" type="button">&#128424; Skriv ut dagens utgave</button>
 </header>
 
-<div class="funday-banner" id="funday-banner" hidden></div>
-
 <nav class="tabs" role="tablist" aria-label="Velg visning">
   <button class="tabs__btn is-active" id="tab-week" role="tab" aria-selected="true" aria-controls="view-week">Denne uken</button>
   <button class="tabs__btn" id="tab-overtime" role="tab" aria-selected="false" aria-controls="view-overtime">Over tid</button>
@@ -128,6 +126,19 @@
     </div>
   </section>
 
+  <!-- ============ NEWSROOM: special days + Wikipedia "Aktuelt" ============ -->
+  <section class="newsroom" aria-labelledby="news-heading">
+    <div class="newsroom__head">
+      <span class="column__kicker">Aktuelt</span>
+      <h2 id="news-heading" class="column__title">Hva skjer i verden</h2>
+    </div>
+
+    <div class="funday-banner" id="funday-banner" hidden></div>
+
+    <ul class="news-list" id="news-list" hidden></ul>
+    <p class="chart-empty news-empty" id="news-empty" hidden></p>
+  </section>
+
 </main>
 
 <footer class="colophon">
@@ -137,6 +148,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="quotes.js"></script>
 <script src="fun-days.js"></script>
+<script src="wiki-news.js"></script>
 <script src="script.js"></script>
 </body>
 </html>
