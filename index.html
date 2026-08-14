@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kontorquizen — Resultater over tid</title>
+<meta name="description" content="Resultater over tid for kontorets Aftenposten- og Morgenbladet-quiz.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead__rule"></div>
+  <div class="masthead__row">
+    <span class="masthead__eyebrow" id="edition-date">—</span>
+    <h1 class="masthead__title">Kontorquizen</h1>
+    <span class="masthead__eyebrow" id="edition-number">No. —</span>
+  </div>
+  <p class="masthead__deck">To redaksjoner. Én ukentlig kappestrid. Resultatene, svart på hvitt.</p>
+  <div class="masthead__rule masthead__rule--thick"></div>
+</header>
+
+<main class="spread">
+
+  <!-- Aftenposten column -->
+  <section class="column column--daily" aria-labelledby="ap-heading">
+    <div class="column__head">
+      <img id="logo" class="column__logo" src="assets/logo.png" alt="Aftenposten logo" onerror="this.style.display='none'">
+      <div class="column__label">
+        <span class="column__kicker">Daglig quiz</span>
+        <h2 id="ap-heading" class="column__title">Aftenposten</h2>
+      </div>
+    </div>
+
+    <div class="stat-row" id="ap-stats" aria-live="polite">
+      <div class="stat"><span class="stat__value" data-stat="count">–</span><span class="stat__label">Quizer</span></div>
+      <div class="stat"><span class="stat__value" data-stat="avg">–</span><span class="stat__label">Snitt</span></div>
+      <div class="stat"><span class="stat__value" data-stat="best">–</span><span class="stat__label">Beste</span></div>
+    </div>
+
+    <div class="chart-frame">
+      <canvas id="ap-chart" role="img" aria-label="Graf over daglige Aftenposten-quiz-resultater"></canvas>
+      <p class="chart-empty" id="ap-empty" hidden>Ingen resultater funnet ennå.</p>
+    </div>
+  </section>
+
+  <div class="gutter" aria-hidden="true"></div>
+
+  <!-- Morgenbladet column -->
+  <section class="column column--weekly" aria-labelledby="mb-heading">
+    <div class="column__head">
+      <img id="logo1" class="column__logo" src="assets/logo1.png" alt="Morgenbladet logo" onerror="this.style.display='none'">
+      <div class="column__label">
+        <span class="column__kicker">Ukentlig quiz</span>
+        <h2 id="mb-heading" class="column__title">Morgenbladet</h2>
+      </div>
+    </div>
+
+    <div class="stat-row" id="mb-stats" aria-live="polite">
+      <div class="stat"><span class="stat__value" data-stat="count">–</span><span class="stat__label">Uker</span></div>
+      <div class="stat"><span class="stat__value" data-stat="avg">–</span><span class="stat__label">Snitt</span></div>
+      <div class="stat"><span class="stat__value" data-stat="best">–</span><span class="stat__label">Beste</span></div>
+    </div>
+
+    <div class="chart-frame">
+      <canvas id="mb-chart" role="img" aria-label="Graf over ukentlige Morgenbladet-quiz-resultater"></canvas>
+      <p class="chart-empty" id="mb-empty" hidden>Ingen resultater funnet ennå.</p>
+    </div>
+  </section>
+
+</main>
+
+<p class="status-line" id="status-line" hidden></p>
+
+<footer class="colophon">
+  <span>Data hentet direkte fra Google Sheets.</span>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
