@@ -58,6 +58,7 @@ async function init() {
   setupTabs();
   setupPrintButton();
   renderFunDayBanner();
+  renderWikiNews();
 
   let rows;
   try {
@@ -125,6 +126,40 @@ function renderFunDayBanner() {
 function joinNorwegian(names) {
   if (names.length === 1) return names[0];
   return `${names.slice(0, -1).join(", ")} og ${names[names.length - 1]}`;
+}
+
+/* ---------- Wikipedia "Aktuelt" ---------- */
+
+async function renderWikiNews() {
+  const listEl = document.getElementById("news-list");
+  const emptyEl = document.getElementById("news-empty");
+
+  try {
+    const items = await fetchWikiAktuelt();
+    if (!items.length) throw new Error("Tom liste fra Wikipedia");
+
+    listEl.innerHTML = items
+      .map((item) => {
+        const text = escapeHtml(item.text);
+        return item.url
+          ? `<li><a href="${item.url}" target="_blank" rel="noopener">${text}</a></li>`
+          : `<li>${text}</li>`;
+      })
+      .join("");
+    listEl.hidden = false;
+    emptyEl.hidden = true;
+  } catch (err) {
+    console.error(err);
+    listEl.hidden = true;
+    emptyEl.hidden = false;
+    emptyEl.textContent = "Kunne ikke hente aktuelt-saker fra Wikipedia akkurat nå.";
+  }
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
 }
 
 /* ---------- Print ---------- */
