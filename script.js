@@ -57,6 +57,7 @@ async function init() {
   setEdition();
   setupTabs();
   setupPrintButton();
+  renderFunDayBanner();
 
   let rows;
   try {
@@ -96,6 +97,34 @@ function setupWeekNav() {
   document.getElementById("mb-next").addEventListener("click", () => {
     if (mbIndex < mbWeeksData.length - 1) { mbIndex++; renderMorgenbladetWeek(); }
   });
+}
+
+/* ---------- Fun & food days ---------- */
+
+function renderFunDayBanner() {
+  const el = document.getElementById("funday-banner");
+  const { today, tomorrow } = getFunDayBanner();
+
+  const lines = [];
+  if (today.length) {
+    lines.push(`Hurra, i dag er det ${joinNorwegian(today)}!`);
+  }
+  if (tomorrow.length) {
+    lines.push(`I morgen er det ${joinNorwegian(tomorrow)}.`);
+  }
+
+  if (!lines.length) {
+    el.hidden = true;
+    return;
+  }
+
+  el.innerHTML = lines.map((line) => `<p>${line}</p>`).join("");
+  el.hidden = false;
+}
+
+function joinNorwegian(names) {
+  if (names.length === 1) return names[0];
+  return `${names.slice(0, -1).join(", ")} og ${names[names.length - 1]}`;
 }
 
 /* ---------- Print ---------- */
