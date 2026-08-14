@@ -47,7 +47,11 @@
             <h2 class="column__title">Aftenposten</h2>
           </div>
         </div>
-        <p class="week-tag" id="ap-week-tag">—</p>
+        <div class="week-nav">
+          <button class="week-nav__btn" id="ap-prev" aria-label="Forrige uke">&#8249;</button>
+          <p class="week-tag" id="ap-week-tag">—</p>
+          <button class="week-nav__btn" id="ap-next" aria-label="Neste uke">&#8250;</button>
+        </div>
 
         <div class="chart-frame chart-frame--week">
           <canvas id="ap-week-chart" role="img" aria-label="Denne ukens Aftenposten-resultater, dag for dag"></canvas>
@@ -72,7 +76,11 @@
             <h2 class="column__title">Morgenbladet</h2>
           </div>
         </div>
-        <p class="week-tag" id="mb-week-tag">—</p>
+        <div class="week-nav">
+          <button class="week-nav__btn" id="mb-prev" aria-label="Forrige uke">&#8249;</button>
+          <p class="week-tag" id="mb-week-tag">—</p>
+          <button class="week-nav__btn" id="mb-next" aria-label="Neste uke">&#8250;</button>
+        </div>
 
         <div class="score-frame" id="mb-score-frame">
           <div class="score-big">
