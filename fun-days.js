@@ -38,6 +38,17 @@ const FUN_DAYS = [
   { type: "fixed", month: 10, day: 16, name: "verdens brøddag" },
   { type: "fixed", month: 10, day: 31, name: "halloween" },
   { type: "nth-weekday", month: 11, weekday: 0, nth: 2, name: "farsdag" },
+
+  // Navnedager (Norwegian name days), verified against Almanakkforlaget-
+  // based calendars (klikk.no/Navneguiden, Store norske leksikon).
+  { type: "fixed", month: 4, day: 4, name: "navnedagen til Nina" },
+  { type: "fixed", month: 4, day: 23, name: "navnedagen til Georg" },
+  { type: "fixed", month: 5, day: 30, name: "navnedagen til Gard" },
+  { type: "fixed", month: 7, day: 3, name: "navnedagen til Andrea" },
+  { type: "fixed", month: 7, day: 29, name: "navnedagen til Olav" },
+  { type: "fixed", month: 9, day: 6, name: "navnedagen til Siv" },
+  { type: "fixed", month: 9, day: 18, name: "navnedagen til Henriette" },
+  { type: "fixed", month: 12, day: 6, name: "navnedagen til Niklas" },
 ];
 
 // --- date helpers ---------------------------------------------------
