@@ -26,16 +26,27 @@ const COLS = {
 
 const DATA_START_ROW = 2; // rows 0 and 1 are the two header rows
 const MB_MAX = 20;
+const MB_STREAK_THRESHOLD = MB_MAX / 2;
+
+// Rotates daily (same quote all day, changes at midnight) — purely decorative.
+const QUOTES = [
+  "Redaksjonen minner om at gjetting ikke er journalistikk.",
+  "Kunnskap er som brød — best fersk, pinlig når den mangler.",
+  "En quiz om dagen holder uvitenheten unna kaffemaskinen.",
+  "Sant nok: den som skummer overskriftene, skummer også quizen.",
+  "Ingen skam å google i etterkant. Skam er å ikke prøve.",
+  "Leserbrev mottas ikke. Bortforklaringer heller ikke.",
+];
 
 /* ========================================================= */
 
 const THEME = {
-  ink: "#1C2233",
-  inkSoft: "#4A5066",
-  rule: "#C9C2AE",
-  red: "#B3222A",
-  gold: "#A9812F",
-  paperRaised: "#F5F2E9",
+  ink: "#2B2013",
+  inkSoft: "#5B4E38",
+  rule: "#B8A67E",
+  red: "#7B2D26",
+  gold: "#8C6A2B",
+  paperRaised: "#EFE7CE",
 };
 
 // Module-level state so the prev/next buttons can re-render without
@@ -52,6 +63,7 @@ document.addEventListener("DOMContentLoaded", init);
 async function init() {
   setEdition();
   setupTabs();
+  setupPrintButton();
 
   let rows;
   try {
@@ -91,6 +103,12 @@ function setupWeekNav() {
   document.getElementById("mb-next").addEventListener("click", () => {
     if (mbIndex < mbWeeksData.length - 1) { mbIndex++; renderMorgenbladetWeek(); }
   });
+}
+
+/* ---------- Print ---------- */
+
+function setupPrintButton() {
+  document.getElementById("print-btn").addEventListener("click", () => window.print());
 }
 
 /* ---------- Tabs ---------- */
@@ -214,6 +232,11 @@ function renderAftenpostenWeek() {
   emptyMsg.hidden = true;
   tag.textContent = `Uke ${current.week}`;
 
+  const recordBadge = document.getElementById("ap-record");
+  const currentAvg = averageOf(current.days);
+  const bestAvg = apWeeksData.length > 1 ? Math.max(...apWeeksData.map((w) => averageOf(w.days) ?? -Infinity)) : null;
+  recordBadge.hidden = !(bestAvg !== null && currentAvg !== null && currentAvg >= bestAvg);
+
   const played = current.days.filter((d) => d !== null);
   const sum = played.reduce((a, b) => a + b, 0);
   const avg = played.length ? sum / played.length : 0;
@@ -242,7 +265,7 @@ function renderAftenpostenWeek() {
         legend: { display: false },
         tooltip: {
           backgroundColor: THEME.ink,
-          bodyFont: { family: "IBM Plex Mono", size: 12, weight: "600" },
+          bodyFont: { family: "Special Elite", size: 12, weight: "600" },
           displayColors: false,
           callbacks: {
             label: (ctx) => (ctx.parsed.y === null ? "Ikke spilt" : `${ctx.parsed.y} poeng`),
@@ -252,13 +275,13 @@ function renderAftenpostenWeek() {
       scales: {
         x: {
           grid: { display: false },
-          ticks: { color: THEME.inkSoft, font: { family: "IBM Plex Mono", size: 11 } },
+          ticks: { color: THEME.inkSoft, font: { family: "Special Elite", size: 11 } },
         },
         y: {
           beginAtZero: true,
           grid: { color: THEME.rule },
           border: { display: false },
-          ticks: { color: THEME.inkSoft, font: { family: "IBM Plex Mono", size: 10 }, precision: 0 },
+          ticks: { color: THEME.inkSoft, font: { family: "Special Elite", size: 10 }, precision: 0 },
         },
       },
     },
@@ -287,6 +310,33 @@ function renderMorgenbladetWeek() {
   tag.textContent = `Uke ${current.week}`;
   numEl.textContent = current.score;
   verdictEl.textContent = moodMessage(current.score);
+
+  const recordBadge = document.getElementById("mb-record");
+  const bestScore = mbWeeksData.length > 1 ? Math.max(...mbWeeksData.map((w) => w.score)) : null;
+  recordBadge.hidden = !(bestScore !== null && current.score >= bestScore);
+
+  const streakBadge = document.getElementById("mb-streak");
+  const streak = computeMbStreak(mbIndex);
+  if (streak >= 2) {
+    streakBadge.hidden = false;
+    streakBadge.textContent = `\u{1F525} ${streak} uker over middels`;
+  } else {
+    streakBadge.hidden = true;
+  }
+}
+
+function computeMbStreak(uptoIndex) {
+  let streak = 0;
+  for (let i = uptoIndex; i >= 0; i--) {
+    if (mbWeeksData[i].score >= MB_STREAK_THRESHOLD) streak++;
+    else break;
+  }
+  return streak;
+}
+
+function averageOf(days) {
+  const played = days.filter((d) => d !== null);
+  return played.length ? played.reduce((a, b) => a + b, 0) / played.length : null;
 }
 
 function moodMessage(score) {
@@ -368,23 +418,23 @@ function renderOverTime(apWeeks, mbWeeks) {
         legend: { display: false }, // shown via .legend-row instead
         tooltip: {
           backgroundColor: THEME.ink,
-          titleFont: { family: "IBM Plex Mono", size: 11 },
-          bodyFont: { family: "IBM Plex Mono", size: 12, weight: "600" },
+          titleFont: { family: "Special Elite", size: 11 },
+          bodyFont: { family: "Special Elite", size: 12, weight: "600" },
           padding: 8,
         },
       },
       scales: {
         x: {
           grid: { display: false },
-          ticks: { color: THEME.inkSoft, font: { family: "IBM Plex Mono", size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 },
+          ticks: { color: THEME.inkSoft, font: { family: "Special Elite", size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 },
         },
         yAP: {
           position: "left",
           beginAtZero: true,
           grid: { color: THEME.rule },
           border: { display: false },
-          ticks: { color: THEME.red, font: { family: "IBM Plex Mono", size: 10 } },
-          title: { display: true, text: "Aftenposten", color: THEME.red, font: { family: "IBM Plex Mono", size: 10 } },
+          ticks: { color: THEME.red, font: { family: "Special Elite", size: 10 } },
+          title: { display: true, text: "Aftenposten", color: THEME.red, font: { family: "Special Elite", size: 10 } },
         },
         yMB: {
           position: "right",
@@ -392,8 +442,8 @@ function renderOverTime(apWeeks, mbWeeks) {
           max: MB_MAX,
           grid: { display: false },
           border: { display: false },
-          ticks: { color: THEME.gold, font: { family: "IBM Plex Mono", size: 10 } },
-          title: { display: true, text: "Morgenbladet", color: THEME.gold, font: { family: "IBM Plex Mono", size: 10 } },
+          ticks: { color: THEME.gold, font: { family: "Special Elite", size: 10 } },
+          title: { display: true, text: "Morgenbladet", color: THEME.gold, font: { family: "Special Elite", size: 10 } },
         },
       },
     },
@@ -420,6 +470,8 @@ function setEdition() {
   const dayOfYear = Math.floor((now - startOfYear) / 86400000) + 1;
   document.getElementById("edition-number").textContent =
     `No. ${String(dayOfYear).padStart(3, "0")}`;
+
+  document.getElementById("masthead-quote").textContent = QUOTES[dayOfYear % QUOTES.length];
 }
 
 function showStatus(message) {
