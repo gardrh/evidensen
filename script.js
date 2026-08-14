@@ -38,6 +38,15 @@ const THEME = {
   paperRaised: "#F5F2E9",
 };
 
+// Module-level state so the prev/next buttons can re-render without
+// re-fetching the sheet. Aftenposten and Morgenbladet browse
+// independently, since one quiz may have more recent data than the other.
+let apWeeksData = [];
+let mbWeeksData = [];
+let apIndex = -1;
+let mbIndex = -1;
+let apChartInstance = null;
+
 document.addEventListener("DOMContentLoaded", init);
 
 async function init() {
@@ -56,11 +65,32 @@ async function init() {
   }
 
   const dataRows = rows.slice(DATA_START_ROW);
-  const apWeeks = extractAftenpostenWeeks(dataRows);
-  const mbWeeks = extractMorgenbladetWeeks(dataRows);
+  apWeeksData = extractAftenpostenWeeks(dataRows);
+  mbWeeksData = extractMorgenbladetWeeks(dataRows);
+  apIndex = apWeeksData.length - 1;
+  mbIndex = mbWeeksData.length - 1;
 
-  renderThisWeek(apWeeks, mbWeeks);
-  renderOverTime(apWeeks, mbWeeks);
+  setupWeekNav();
+  renderAftenpostenWeek();
+  renderMorgenbladetWeek();
+  renderOverTime(apWeeksData, mbWeeksData);
+}
+
+/* ---------- Week navigation (prev/next) ---------- */
+
+function setupWeekNav() {
+  document.getElementById("ap-prev").addEventListener("click", () => {
+    if (apIndex > 0) { apIndex--; renderAftenpostenWeek(); }
+  });
+  document.getElementById("ap-next").addEventListener("click", () => {
+    if (apIndex < apWeeksData.length - 1) { apIndex++; renderAftenpostenWeek(); }
+  });
+  document.getElementById("mb-prev").addEventListener("click", () => {
+    if (mbIndex > 0) { mbIndex--; renderMorgenbladetWeek(); }
+  });
+  document.getElementById("mb-next").addEventListener("click", () => {
+    if (mbIndex < mbWeeksData.length - 1) { mbIndex++; renderMorgenbladetWeek(); }
+  });
 }
 
 /* ---------- Tabs ---------- */
@@ -155,16 +185,23 @@ function extractMorgenbladetWeeks(rows) {
 
 /* ---------- View: this week ---------- */
 
-function renderThisWeek(apWeeks, mbWeeks) {
-  renderAftenpostenWeek(apWeeks.length ? apWeeks[apWeeks.length - 1] : null);
-  renderMorgenbladetWeek(mbWeeks.length ? mbWeeks[mbWeeks.length - 1] : null);
-}
-
-function renderAftenpostenWeek(current) {
+function renderAftenpostenWeek() {
   const tag = document.getElementById("ap-week-tag");
   const canvas = document.getElementById("ap-week-chart");
   const emptyMsg = document.getElementById("ap-week-empty");
   const statsEl = document.getElementById("ap-week-stats");
+  const prevBtn = document.getElementById("ap-prev");
+  const nextBtn = document.getElementById("ap-next");
+
+  prevBtn.disabled = apIndex <= 0;
+  nextBtn.disabled = apIndex >= apWeeksData.length - 1;
+
+  const current = apIndex >= 0 ? apWeeksData[apIndex] : null;
+
+  if (apChartInstance) {
+    apChartInstance.destroy();
+    apChartInstance = null;
+  }
 
   if (!current) {
     tag.textContent = "Ingen data ennå";
@@ -173,6 +210,8 @@ function renderAftenpostenWeek(current) {
     return;
   }
 
+  canvas.style.display = "";
+  emptyMsg.hidden = true;
   tag.textContent = `Uke ${current.week}`;
 
   const played = current.days.filter((d) => d !== null);
@@ -183,7 +222,7 @@ function renderAftenpostenWeek(current) {
   statsEl.querySelector('[data-stat="avg"]').textContent = played.length ? avg.toFixed(1) : "–";
   statsEl.querySelector('[data-stat="days"]').textContent = `${played.length}/5`;
 
-  new Chart(canvas.getContext("2d"), {
+  apChartInstance = new Chart(canvas.getContext("2d"), {
     type: "bar",
     data: {
       labels: COLS.apDayLabels,
@@ -226,10 +265,17 @@ function renderAftenpostenWeek(current) {
   });
 }
 
-function renderMorgenbladetWeek(current) {
+function renderMorgenbladetWeek() {
   const tag = document.getElementById("mb-week-tag");
   const numEl = document.getElementById("mb-score-num");
   const verdictEl = document.getElementById("mb-verdict");
+  const prevBtn = document.getElementById("mb-prev");
+  const nextBtn = document.getElementById("mb-next");
+
+  prevBtn.disabled = mbIndex <= 0;
+  nextBtn.disabled = mbIndex >= mbWeeksData.length - 1;
+
+  const current = mbIndex >= 0 ? mbWeeksData[mbIndex] : null;
 
   if (!current) {
     tag.textContent = "Ingen data ennå";
