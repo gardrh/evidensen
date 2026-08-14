@@ -127,7 +127,9 @@ body {
   font-size: 0.88rem;
   color: var(--press-red);
   letter-spacing: 0.01em;
-  margin: 0 0 14px;
+  margin: 0 auto 14px;
+  max-width: 60ch;
+  line-height: 1.5;
 }
 .masthead__quote::before { content: "\2767  "; }
 .masthead__quote::after { content: "  \2767"; }

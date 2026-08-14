@@ -28,15 +28,8 @@ const DATA_START_ROW = 2; // rows 0 and 1 are the two header rows
 const MB_MAX = 20;
 const MB_STREAK_THRESHOLD = MB_MAX / 2;
 
-// Rotates daily (same quote all day, changes at midnight) — purely decorative.
-const QUOTES = [
-  "Redaksjonen minner om at gjetting ikke er journalistikk.",
-  "Kunnskap er som brød — best fersk, pinlig når den mangler.",
-  "En quiz om dagen holder uvitenheten unna kaffemaskinen.",
-  "Sant nok: den som skummer overskriftene, skummer også quizen.",
-  "Ingen skam å google i etterkant. Skam er å ikke prøve.",
-  "Leserbrev mottas ikke. Bortforklaringer heller ikke.",
-];
+// QUOTES is defined in quotes.js (loaded before this file) as
+// [{ q: "...", a: "Author Name" }, ...]
 
 /* ========================================================= */
 
@@ -471,7 +464,8 @@ function setEdition() {
   document.getElementById("edition-number").textContent =
     `No. ${String(dayOfYear).padStart(3, "0")}`;
 
-  document.getElementById("masthead-quote").textContent = QUOTES[dayOfYear % QUOTES.length];
+  const quote = QUOTES[dayOfYear % QUOTES.length];
+  document.getElementById("masthead-quote").textContent = `${quote.q} \u2014 ${quote.a}`;
 }
 
 function showStatus(message) {
