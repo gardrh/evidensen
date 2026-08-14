@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kontorquizen — Resultater</title>
+<title>Evidensen — Resultater</title>
 <meta name="description" content="Resultater for kontorets Aftenposten- og Morgenbladet-quiz.">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,900;1,600&family=Special+Elite&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=UnifrakturCook:wght@700&family=Playfair+Display:ital,wght@0,600;0,700;0,900;1,600&family=Special+Elite&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="style.css">
 </head>
@@ -19,14 +19,16 @@
   <div class="masthead__rule"></div>
   <div class="masthead__row">
     <span class="masthead__eyebrow" id="edition-date">—</span>
-    <h1 class="masthead__title">Kontorquizen</h1>
+    <h1 class="masthead__title">Evidensen</h1>
     <span class="masthead__eyebrow" id="edition-number">No. —</span>
   </div>
-  <p class="masthead__deck">To redaksjoner. Én ukentlig kappestrid. Resultatene, svart på hvitt.</p>
+  <p class="masthead__deck">Viktig lokalnytt fra koridoren til høyre ut av heisen i fjerde etasje i Meltzersgate 4.</p>
   <p class="masthead__quote" id="masthead-quote">—</p>
   <div class="masthead__rule masthead__rule--thick"></div>
   <button class="print-btn" id="print-btn" type="button">&#128424; Skriv ut dagens utgave</button>
 </header>
+
+<div class="funday-banner" id="funday-banner" hidden></div>
 
 <nav class="tabs" role="tablist" aria-label="Velg visning">
   <button class="tabs__btn is-active" id="tab-week" role="tab" aria-selected="true" aria-controls="view-week">Denne uken</button>
@@ -134,6 +136,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="quotes.js"></script>
+<script src="fun-days.js"></script>
 <script src="script.js"></script>
 </body>
 </html>
