@@ -23,7 +23,7 @@
 * { box-sizing: border-box; }
 
 @media (prefers-reduced-motion: no-preference) {
-  .column, .masthead { animation: rise 0.6s ease-out both; }
+  .column, .masthead, .overtime { animation: rise 0.6s ease-out both; }
   .column--weekly { animation-delay: 0.08s; }
 }
 @keyframes rise {
@@ -97,12 +97,51 @@ body {
   font-size: 0.98rem;
 }
 
+/* ---------- Tabs ---------- */
+
+.tabs {
+  max-width: 1040px;
+  margin: 20px auto 0;
+  padding: 0 24px;
+  display: flex;
+  justify-content: center;
+  gap: 0;
+}
+
+.tabs__btn {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--ink-soft);
+  padding: 9px 22px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.tabs__btn:first-child { border-radius: var(--radius) 0 0 var(--radius); border-right: none; }
+.tabs__btn:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+
+.tabs__btn.is-active {
+  background: var(--ink);
+  color: var(--paper-raised);
+  border-color: var(--ink);
+}
+.tabs__btn:hover:not(.is-active) {
+  background: rgba(28,34,51,0.06);
+}
+
 /* ---------- Spread / columns ---------- */
 
-.spread {
+main {
   max-width: 1040px;
-  margin: 32px auto;
+  margin: 0 auto;
   padding: 0 24px;
+}
+
+.spread {
+  margin: 28px 0;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   gap: 0 28px;
@@ -113,15 +152,11 @@ body {
   background: var(--rule);
 }
 
-.column {
-  min-width: 0;
-}
-
 .column__head {
   display: flex;
   align-items: center;
   gap: 14px;
-  margin-bottom: 18px;
+  margin-bottom: 6px;
 }
 
 .column__logo {
@@ -149,13 +184,22 @@ body {
   margin: 2px 0 0;
 }
 
+.week-tag {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+  margin: 0 0 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--rule);
+}
+
 /* ---------- Stat row ---------- */
 
 .stat-row {
   display: flex;
   border-top: 1px solid var(--rule);
   border-bottom: 1px solid var(--rule);
-  margin-bottom: 18px;
+  margin-top: 16px;
 }
 
 .stat {
@@ -192,8 +236,10 @@ body {
   border: 1px solid var(--rule);
   border-radius: var(--radius);
   padding: 16px 12px;
-  height: 280px;
 }
+
+.chart-frame--week { height: 240px; }
+.chart-frame--wide { height: 380px; }
 
 .chart-empty {
   position: absolute;
@@ -209,11 +255,89 @@ body {
   padding: 0 20px;
 }
 
+/* ---------- Morgenbladet score block ---------- */
+
+.score-frame {
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: 32px 20px;
+  text-align: center;
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.score-big {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+}
+
+.score-big__num {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 5.5rem;
+  line-height: 1;
+  color: var(--mustard);
+}
+
+.score-big__den {
+  font-family: var(--font-mono);
+  font-size: 1.3rem;
+  color: var(--ink-soft);
+}
+
+.score-verdict {
+  margin: 18px 0 0;
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 1.05rem;
+  color: var(--ink);
+  max-width: 34ch;
+}
+
+/* ---------- Over-time view ---------- */
+
+.overtime {
+  margin: 28px 0 40px;
+}
+
+.overtime__head {
+  margin-bottom: 4px;
+}
+
+.legend-row {
+  display: flex;
+  gap: 18px;
+  margin: 10px 0 14px;
+  flex-wrap: wrap;
+}
+
+.legend-chip {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.legend-chip i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
 /* ---------- Status / footer ---------- */
 
 .status-line {
   max-width: 1040px;
-  margin: -10px auto 24px;
+  margin: 14px auto 0;
   padding: 0 24px;
   font-family: var(--font-mono);
   font-size: 0.78rem;
@@ -243,6 +367,7 @@ body {
   .gutter { display: none; }
   .masthead__row { flex-direction: column; gap: 6px; text-align: center; }
   .masthead__deck { font-size: 0.9rem; }
+  .score-big__num { font-size: 4.2rem; }
 }
 
 /* ---------- Focus visibility ---------- */
