@@ -1,15 +1,23 @@
 /* =========================================================
    Kontorquizen — "Aktuelt" from Norwegian Wikipedia
 
-   Pulls the current-events list straight from the template that
-   powers the "Aktuelt" box on no.wikipedia.org/wiki/Forside
-   (Mal:Aktuelt), via the public MediaWiki API. No API key needed —
-   origin=* asks the API to allow the request from any domain, which
-   is how the read API supports anonymous cross-site fetches.
+   Pulls the current-events list straight from the "hovedsaker"
+   (main headlines) subpage that feeds the "Aktuelt" box on
+   no.wikipedia.org/wiki/Forside, via the public MediaWiki API.
+   No API key needed — origin=* asks the API to allow the request
+   from any domain, which is how the read API supports anonymous
+   cross-site fetches.
+
+   Deliberately NOT fetching the combined Mal:Aktuelt page, since
+   that also pulls in several other boxes we don't want here:
+   Mal:Aktuelt/saker (background events), Mal:Aktuelt/kultur
+   (culture), Mal:Aktuelt/sport (sport), Mal:Avdøde (deaths),
+   Mal:Gode nye (new good articles), Mal:Ukens artikkel (article
+   of the week). Mal:Aktuelt/hovedsaker is just the main headlines.
    ========================================================= */
 
 const WIKI_AKTUELT_API_URL =
-  "https://no.wikipedia.org/w/api.php?action=parse&page=Mal%3AAktuelt&prop=text&formatversion=2&format=json&origin=*";
+  "https://no.wikipedia.org/w/api.php?action=parse&page=Mal%3AAktuelt%2Fhovedsaker&prop=text&formatversion=2&format=json&origin=*";
 
 async function fetchWikiAktuelt() {
   const res = await fetch(WIKI_AKTUELT_API_URL);
