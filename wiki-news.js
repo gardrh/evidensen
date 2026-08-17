@@ -64,3 +64,45 @@ async function fetchWikiAktuelt() {
 
   return items;
 }
+
+/* =========================================================
+   "Ikke så aktuelt" — top 5 historical items for today's date
+   from Wikipedia:Dagen i dag ("On this day"). That page lists
+   BOTH today's and tomorrow's curated highlight list, each
+   preceded by a one-item marker list ("Dagen i dag:" / "I morgen:").
+   This finds the "Dagen i dag:" marker, then takes the next <ul>
+   that follows it (skipping the image/paragraph in between) —
+   that's today's list specifically, never tomorrow's.
+   ========================================================= */
+
+const WIKI_ON_THIS_DAY_PAGE = "Wikipedia:Dagen i dag";
+const WIKI_ON_THIS_DAY_MARKER = "Dagen i dag:";
+
+async function fetchOnThisDayTop5() {
+  const data = await wikiApiFetch({
+    action: "parse",
+    page: WIKI_ON_THIS_DAY_PAGE,
+    prop: "text",
+  });
+  const html = data && data.parse && data.parse.text;
+  if (!html) throw new Error("Uventet svar fra Wikipedia API");
+
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const marker = [...doc.querySelectorAll("li")].find(
+    (li) => li.textContent.trim() === WIKI_ON_THIS_DAY_MARKER
+  );
+  const markerList = marker && marker.closest("ul");
+  if (!markerList) throw new Error('Fant ikke "Dagen i dag"-listen');
+
+  let sib = markerList.nextElementSibling;
+  while (sib && sib.tagName !== "UL") sib = sib.nextElementSibling;
+  if (!sib) throw new Error("Fant ikke dagens hendelser");
+
+  return [...sib.querySelectorAll("li")].slice(0, 5).map((li) => {
+    const link = li.querySelector("a[href]");
+    let url = link ? link.getAttribute("href") : null;
+    if (url && url.startsWith("/")) url = `https://no.wikipedia.org${url}`;
+    const text = li.textContent.replace(/\s+/g, " ").trim();
+    return { text, url };
+  });
+}
