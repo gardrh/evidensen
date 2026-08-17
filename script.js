@@ -136,12 +136,26 @@ async function renderWeather() {
   const timeLabel = nowTimeLabel();
   grid.innerHTML = WEATHER_LOCATIONS.map((loc, i) => `
     <div class="weather-col" id="weather-col-${i}">
-      <h3 class="weather-col__title">${escapeHtml(loc.name)} <span class="weather-col__time">${timeLabel}</span></h3>
+      <h3 class="weather-col__title">${escapeHtml(loc.name)} <span class="weather-col__time" id="weather-time-${i}">${timeLabel}</span></h3>
       <p class="chart-empty news-empty weather-loading">Henter værdata …</p>
     </div>
   `).join("");
 
   await Promise.all(WEATHER_LOCATIONS.map((loc, i) => renderWeatherColumn(loc, i)));
+  startWeatherClock();
+}
+
+let weatherClockInterval = null;
+
+function startWeatherClock() {
+  if (weatherClockInterval) return; // already running
+  weatherClockInterval = setInterval(() => {
+    const timeLabel = nowTimeLabel();
+    WEATHER_LOCATIONS.forEach((loc, i) => {
+      const el = document.getElementById(`weather-time-${i}`);
+      if (el) el.textContent = timeLabel;
+    });
+  }, 1000);
 }
 
 function nowTimeLabel() {
@@ -157,7 +171,7 @@ async function renderWeatherColumn(loc, index) {
     const hours = await fetchTodayHourly(loc.lat, loc.lon);
     if (!hours.length) throw new Error("Ingen timesdata for i dag");
 
-    let html = `<h3 class="weather-col__title">${escapeHtml(loc.name)} <span class="weather-col__time">${timeLabel}</span></h3>`;
+    let html = `<h3 class="weather-col__title">${escapeHtml(loc.name)} <span class="weather-col__time" id="weather-time-${index}">${timeLabel}</span></h3>`;
     html += `<div class="weather-hours">`;
     html += hours
       .map((h) => {
@@ -189,7 +203,7 @@ async function renderWeatherColumn(loc, index) {
   } catch (err) {
     console.error(err);
     col.innerHTML = `
-      <h3 class="weather-col__title">${escapeHtml(loc.name)} <span class="weather-col__time">${timeLabel}</span></h3>
+      <h3 class="weather-col__title">${escapeHtml(loc.name)} <span class="weather-col__time" id="weather-time-${index}">${timeLabel}</span></h3>
       <p class="chart-empty news-empty">Kunne ikke hente værdata for ${escapeHtml(loc.name)} akkurat nå.</p>`;
   }
 }
