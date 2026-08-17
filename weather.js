@@ -20,11 +20,12 @@ const MET_API_BASE = "https://api.met.no/weatherapi";
 
 const WEATHER_LOCATIONS = [
   { name: "Meltzersgate 4, Oslo", lat: 59.9175307, lon: 10.7203985, nowcast: true },
-  { name: "Villaveien 5, Bergen", lat: 60.3859335, lon: 5.3229234, nowcast: false },
+  { name: "Villaveien 5, Bergen", lat: 60.3859335, lon: 5.3229234, nowcast: true },
 ];
 
 const WEATHER_FROM_HOUR = 8;
 const WEATHER_TO_HOUR = 17;
+const WEATHER_HOUR_STEP = 2; // every other hour, to keep the row compact
 
 // Short Norwegian labels + a small icon per MET symbol_code family
 // (the _day/_night/_polartwilight suffix is stripped before lookup).
@@ -96,7 +97,11 @@ async function fetchTodayHourly(lat, lon) {
       };
     })
     .filter(
-      (e) => e.dateKey === todayKey && e.hour >= WEATHER_FROM_HOUR && e.hour <= WEATHER_TO_HOUR
+      (e) =>
+        e.dateKey === todayKey &&
+        e.hour >= WEATHER_FROM_HOUR &&
+        e.hour <= WEATHER_TO_HOUR &&
+        (e.hour - WEATHER_FROM_HOUR) % WEATHER_HOUR_STEP === 0
     );
 }
 
