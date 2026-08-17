@@ -486,6 +486,11 @@ main {
   gap: 28px;
 }
 
+.weather-col + .weather-col {
+  padding-top: 24px;
+  border-top: 1px dashed var(--rule);
+}
+
 .weather-col__title {
   font-family: var(--font-display);
   font-weight: 700;
@@ -495,27 +500,20 @@ main {
 
 .weather-hours {
   display: flex;
-  gap: 0;
-  overflow-x: auto;
-  background: var(--paper-raised);
-  border: 1px solid var(--ink-soft);
-  box-shadow: 3px 3px 0 rgba(43,32,19,0.08);
-  border-radius: var(--radius);
-  padding: 10px 4px;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
 }
 
 .weather-hour {
   flex: 0 0 auto;
-  min-width: 64px;
   text-align: center;
-  padding: 4px 6px;
-  border-left: 1px solid var(--rule);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
 }
-.weather-hour:first-child { border-left: none; }
 
 .weather-hour__time {
   font-family: var(--font-mono);
@@ -550,12 +548,6 @@ main {
   margin: 0;
   padding: 16px;
   text-align: center;
-}
-
-@media (min-width: 761px) {
-  .weather-grid {
-    grid-template-columns: 1fr 1fr;
-  }
 }
 
 /* ---------- Newsroom: special days + Wikipedia Aktuelt ---------- */
