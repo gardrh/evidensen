@@ -133,9 +133,10 @@ function joinNorwegian(names) {
 
 async function renderWeather() {
   const grid = document.getElementById("weather-grid");
+  const timeLabel = nowTimeLabel();
   grid.innerHTML = WEATHER_LOCATIONS.map((loc, i) => `
     <div class="weather-col" id="weather-col-${i}">
-      <h3 class="weather-col__title">${escapeHtml(loc.name)}</h3>
+      <h3 class="weather-col__title">${escapeHtml(loc.name)} <span class="weather-col__time">${timeLabel}</span></h3>
       <p class="chart-empty news-empty weather-loading">Henter værdata …</p>
     </div>
   `).join("");
@@ -143,13 +144,19 @@ async function renderWeather() {
   await Promise.all(WEATHER_LOCATIONS.map((loc, i) => renderWeatherColumn(loc, i)));
 }
 
+function nowTimeLabel() {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
 async function renderWeatherColumn(loc, index) {
   const col = document.getElementById(`weather-col-${index}`);
+  const timeLabel = nowTimeLabel();
   try {
     const hours = await fetchTodayHourly(loc.lat, loc.lon);
     if (!hours.length) throw new Error("Ingen timesdata for i dag");
 
-    let html = `<h3 class="weather-col__title">${escapeHtml(loc.name)}</h3>`;
+    let html = `<h3 class="weather-col__title">${escapeHtml(loc.name)} <span class="weather-col__time">${timeLabel}</span></h3>`;
     html += `<div class="weather-hours">`;
     html += hours
       .map((h) => {
@@ -181,7 +188,7 @@ async function renderWeatherColumn(loc, index) {
   } catch (err) {
     console.error(err);
     col.innerHTML = `
-      <h3 class="weather-col__title">${escapeHtml(loc.name)}</h3>
+      <h3 class="weather-col__title">${escapeHtml(loc.name)} <span class="weather-col__time">${timeLabel}</span></h3>
       <p class="chart-empty news-empty">Kunne ikke hente værdata for ${escapeHtml(loc.name)} akkurat nå.</p>`;
   }
 }
@@ -222,6 +229,34 @@ async function renderWikiNews() {
     listEl.hidden = true;
     emptyEl.hidden = false;
     emptyEl.textContent = "Kunne ikke hente aktuelt-saker fra Wikipedia akkurat nå.";
+  }
+
+  renderOnThisDay();
+}
+
+async function renderOnThisDay() {
+  const listEl = document.getElementById("onthisday-list");
+  const emptyEl = document.getElementById("onthisday-empty");
+
+  try {
+    const items = await fetchOnThisDayTop5();
+    if (!items.length) throw new Error("Tom liste fra Wikipedia");
+
+    listEl.innerHTML = items
+      .map((item) => {
+        const text = escapeHtml(item.text);
+        return item.url
+          ? `<li><a href="${item.url}" target="_blank" rel="noopener">${text}</a></li>`
+          : `<li>${text}</li>`;
+      })
+      .join("");
+    listEl.hidden = false;
+    emptyEl.hidden = true;
+  } catch (err) {
+    console.error(err);
+    listEl.hidden = true;
+    emptyEl.hidden = false;
+    emptyEl.textContent = "Kunne ikke hente dagens historiske hendelser akkurat nå.";
   }
 }
 
