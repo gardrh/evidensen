@@ -243,6 +243,13 @@ main {
   filter: sepia(0.25) contrast(1.05);
 }
 
+/* Aftenposten's logo mark renders visually smaller than Morgenbladet's
+   at the same height — sized up independently to match. */
+#logo {
+  height: clamp(100px, 30vw, 150px);
+  max-width: min(85vw, 340px);
+}
+
 .column__kicker {
   display: block;
   font-family: var(--font-mono);
