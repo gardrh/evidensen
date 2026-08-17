@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Evidensen - her for deg</title>
+<title>Evidensen — Resultater</title>
 <meta name="description" content="Resultater for kontorets Aftenposten- og Morgenbladet-quiz.">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -135,6 +135,16 @@
     </div>
   </section>
 
+  <!-- ============ VÆRMELDING ============ -->
+  <section class="weather" aria-labelledby="weather-heading">
+    <div class="weather__head">
+      <span class="column__kicker">Værmelding</span>
+      <h2 id="weather-heading" class="column__title">Dagens vær, kl. 08&#8211;17</h2>
+    </div>
+
+    <div class="weather-grid" id="weather-grid"></div>
+  </section>
+
   <!-- ============ NEWSROOM: special days + Wikipedia "Aktuelt" ============ -->
   <section class="newsroom" aria-labelledby="news-heading">
     <div class="newsroom__head">
@@ -158,6 +168,7 @@
 <script src="quotes.js"></script>
 <script src="fun-days.js"></script>
 <script src="wiki-news.js"></script>
+<script src="weather.js"></script>
 <script src="script.js"></script>
 </body>
 </html>
