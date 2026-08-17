@@ -470,6 +470,94 @@ main {
   border-radius: 50%;
 }
 
+/* ---------- Værmelding ---------- */
+
+.weather {
+  margin: 28px 0;
+}
+
+.weather__head {
+  margin-bottom: 16px;
+}
+
+.weather-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 28px;
+}
+
+.weather-col__title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.25rem;
+  margin: 0 0 10px;
+}
+
+.weather-hours {
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  background: var(--paper-raised);
+  border: 1px solid var(--ink-soft);
+  box-shadow: 3px 3px 0 rgba(43,32,19,0.08);
+  border-radius: var(--radius);
+  padding: 10px 4px;
+}
+
+.weather-hour {
+  flex: 0 0 auto;
+  min-width: 64px;
+  text-align: center;
+  padding: 4px 6px;
+  border-left: 1px solid var(--rule);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.weather-hour:first-child { border-left: none; }
+
+.weather-hour__time {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.weather-hour__icon {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.weather-hour__temp {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.weather-nowcast {
+  margin-top: 12px;
+  padding: 10px 14px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  border: 1px dashed var(--rule);
+}
+
+.weather-loading {
+  position: static;
+  display: block;
+  margin: 0;
+  padding: 16px;
+  text-align: center;
+}
+
+@media (min-width: 761px) {
+  .weather-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 /* ---------- Newsroom: special days + Wikipedia Aktuelt ---------- */
 
 .newsroom {
