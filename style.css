@@ -505,6 +505,13 @@ main {
   margin: 0 0 10px;
 }
 
+.weather-col__time {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
 .weather-hours {
   display: flex;
   justify-content: space-between;
@@ -567,6 +574,12 @@ main {
 
 .newsroom__head {
   margin-bottom: 4px;
+}
+
+.newsroom__head--second {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px dashed var(--rule);
 }
 
 .funday-banner {
