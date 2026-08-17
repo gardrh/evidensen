@@ -59,6 +59,7 @@ async function init() {
   setupPrintButton();
   renderFunDayBanner();
   renderWikiNews();
+  renderWeather();
 
   let rows;
   try {
@@ -126,6 +127,74 @@ function renderFunDayBanner() {
 function joinNorwegian(names) {
   if (names.length === 1) return names[0];
   return `${names.slice(0, -1).join(", ")} og ${names[names.length - 1]}`;
+}
+
+/* ---------- Værmelding ---------- */
+
+async function renderWeather() {
+  const grid = document.getElementById("weather-grid");
+  grid.innerHTML = WEATHER_LOCATIONS.map((loc, i) => `
+    <div class="weather-col" id="weather-col-${i}">
+      <h3 class="weather-col__title">${escapeHtml(loc.name)}</h3>
+      <p class="chart-empty news-empty weather-loading">Henter værdata …</p>
+    </div>
+  `).join("");
+
+  await Promise.all(WEATHER_LOCATIONS.map((loc, i) => renderWeatherColumn(loc, i)));
+}
+
+async function renderWeatherColumn(loc, index) {
+  const col = document.getElementById(`weather-col-${index}`);
+  try {
+    const hours = await fetchTodayHourly(loc.lat, loc.lon);
+    if (!hours.length) throw new Error("Ingen timesdata for i dag");
+
+    let html = `<h3 class="weather-col__title">${escapeHtml(loc.name)}</h3>`;
+    html += `<div class="weather-hours">`;
+    html += hours
+      .map((h) => {
+        const info = symbolInfo(h.symbol);
+        const temp = typeof h.temp === "number" ? `${Math.round(h.temp)}\u00B0` : "\u2014";
+        return `
+          <div class="weather-hour">
+            <span class="weather-hour__time">${String(h.hour).padStart(2, "0")}</span>
+            <span class="weather-hour__icon" title="${escapeHtml(info.label)}">${info.icon}</span>
+            <span class="weather-hour__temp">${temp}</span>
+          </div>`;
+      })
+      .join("");
+    html += `</div>`;
+
+    if (loc.nowcast) {
+      html += `<div class="weather-nowcast" id="weather-nowcast-${index}">Henter nedbørsvarsel …</div>`;
+    }
+
+    col.innerHTML = html;
+
+    if (loc.nowcast) {
+      renderNowcast(loc, index).catch((err) => {
+        console.error(err);
+        const el = document.getElementById(`weather-nowcast-${index}`);
+        if (el) el.textContent = "Kunne ikke hente nedbørsvarsel akkurat nå.";
+      });
+    }
+  } catch (err) {
+    console.error(err);
+    col.innerHTML = `
+      <h3 class="weather-col__title">${escapeHtml(loc.name)}</h3>
+      <p class="chart-empty news-empty">Kunne ikke hente værdata for ${escapeHtml(loc.name)} akkurat nå.</p>`;
+  }
+}
+
+async function renderNowcast(loc, index) {
+  const summary = await fetchNowcastSummary(loc.lat, loc.lon);
+  const el = document.getElementById(`weather-nowcast-${index}`);
+  if (!el) return;
+  el.textContent = summary.rain
+    ? summary.minutes <= 2
+      ? "\u2602\uFE0F Regn like om hjørnet."
+      : `\u2602\uFE0F Regn ventet om ca. ${summary.minutes} minutter.`
+    : "\u2600\uFE0F Ingen nedbør ventet de neste 90 minuttene.";
 }
 
 /* ---------- Wikipedia "Aktuelt" ---------- */
