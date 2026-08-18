@@ -47,17 +47,21 @@ const THEME = {
   rule: "#B8A67E",
   red: "#7B2D26",
   gold: "#8C6A2B",
+  bergen: "#3B5A66",
   paperRaised: "#EFE7CE",
 };
 
-// Module-level state, keyed by office id, so the prev/next buttons can
-// re-render without re-fetching the sheet. Each office/quiz combo
-// browses weeks independently.
+// Module-level state, keyed by office id, for the raw per-office data.
+// The "this week" view itself is browsed by a SINGLE shared index per
+// quiz, stepping through the union of weeks across both offices —
+// each render looks up whichever office has data for that week label.
 let apWeeksData = { oslo: [], bergen: [] };
 let mbWeeksData = { oslo: [], bergen: [] };
-let apIndex = { oslo: -1, bergen: -1 };
-let mbIndex = { oslo: -1, bergen: -1 };
-let apChartInstance = { oslo: null, bergen: null };
+let apUnionWeeks = [];
+let mbUnionWeeks = [];
+let apIndex = -1;
+let mbIndex = -1;
+let apChartInstance = null;
 
 document.addEventListener("DOMContentLoaded", init);
 
@@ -84,8 +88,6 @@ async function init() {
       apWeeksData[officeId] = [];
       mbWeeksData[officeId] = [];
     }
-    apIndex[officeId] = apWeeksData[officeId].length - 1;
-    mbIndex[officeId] = mbWeeksData[officeId].length - 1;
   });
 
   if (!anySuccess) {
@@ -95,30 +97,41 @@ async function init() {
     return;
   }
 
+  apUnionWeeks = computeUnionWeeks(apWeeksData);
+  mbUnionWeeks = computeUnionWeeks(mbWeeksData);
+  apIndex = apUnionWeeks.length - 1;
+  mbIndex = mbUnionWeeks.length - 1;
+
   setupWeekNav();
-  OFFICES.forEach((o) => {
-    renderAftenpostenWeek(o.id);
-    renderMorgenbladetWeek(o.id);
-  });
+  renderAftenpostenWeek();
+  renderMorgenbladetWeek();
   renderOverTime();
+}
+
+function computeUnionWeeks(dataByOffice) {
+  const weekSet = new Set();
+  OFFICES.forEach((o) => dataByOffice[o.id].forEach((w) => weekSet.add(w.week)));
+  return [...weekSet].sort((a, b) => Number(a) - Number(b));
+}
+
+function findWeekEntry(weeksArr, weekLabel) {
+  return weeksArr.find((w) => w.week === weekLabel) || null;
 }
 
 /* ---------- Week navigation (prev/next) ---------- */
 
 function setupWeekNav() {
-  OFFICES.forEach((o) => {
-    document.getElementById(`ap-prev-${o.id}`).addEventListener("click", () => {
-      if (apIndex[o.id] > 0) { apIndex[o.id]--; renderAftenpostenWeek(o.id); }
-    });
-    document.getElementById(`ap-next-${o.id}`).addEventListener("click", () => {
-      if (apIndex[o.id] < apWeeksData[o.id].length - 1) { apIndex[o.id]++; renderAftenpostenWeek(o.id); }
-    });
-    document.getElementById(`mb-prev-${o.id}`).addEventListener("click", () => {
-      if (mbIndex[o.id] > 0) { mbIndex[o.id]--; renderMorgenbladetWeek(o.id); }
-    });
-    document.getElementById(`mb-next-${o.id}`).addEventListener("click", () => {
-      if (mbIndex[o.id] < mbWeeksData[o.id].length - 1) { mbIndex[o.id]++; renderMorgenbladetWeek(o.id); }
-    });
+  document.getElementById("ap-prev").addEventListener("click", () => {
+    if (apIndex > 0) { apIndex--; renderAftenpostenWeek(); }
+  });
+  document.getElementById("ap-next").addEventListener("click", () => {
+    if (apIndex < apUnionWeeks.length - 1) { apIndex++; renderAftenpostenWeek(); }
+  });
+  document.getElementById("mb-prev").addEventListener("click", () => {
+    if (mbIndex > 0) { mbIndex--; renderMorgenbladetWeek(); }
+  });
+  document.getElementById("mb-next").addEventListener("click", () => {
+    if (mbIndex < mbUnionWeeks.length - 1) { mbIndex++; renderMorgenbladetWeek(); }
   });
 }
 
@@ -400,61 +413,61 @@ function extractMorgenbladetWeeks(rows) {
 
 /* ---------- View: this week ---------- */
 
-function renderAftenpostenWeek(officeId) {
-  const tag = document.getElementById(`ap-week-tag-${officeId}`);
-  const canvas = document.getElementById(`ap-week-chart-${officeId}`);
-  const emptyMsg = document.getElementById(`ap-week-empty-${officeId}`);
-  const statsEl = document.getElementById(`ap-week-stats-${officeId}`);
-  const prevBtn = document.getElementById(`ap-prev-${officeId}`);
-  const nextBtn = document.getElementById(`ap-next-${officeId}`);
+function renderAftenpostenWeek() {
+  const tag = document.getElementById("ap-week-tag");
+  const canvas = document.getElementById("ap-week-chart");
+  const emptyMsg = document.getElementById("ap-week-empty");
+  const prevBtn = document.getElementById("ap-prev");
+  const nextBtn = document.getElementById("ap-next");
 
-  const weeks = apWeeksData[officeId];
-  const idx = apIndex[officeId];
+  prevBtn.disabled = apIndex <= 0;
+  nextBtn.disabled = apIndex >= apUnionWeeks.length - 1;
 
-  prevBtn.disabled = idx <= 0;
-  nextBtn.disabled = idx >= weeks.length - 1;
-
-  const current = idx >= 0 ? weeks[idx] : null;
-
-  if (apChartInstance[officeId]) {
-    apChartInstance[officeId].destroy();
-    apChartInstance[officeId] = null;
+  if (apChartInstance) {
+    apChartInstance.destroy();
+    apChartInstance = null;
   }
 
-  if (!current) {
+  const weekLabel = apIndex >= 0 ? apUnionWeeks[apIndex] : null;
+
+  if (!weekLabel) {
     tag.textContent = "Ingen data ennå";
     canvas.style.display = "none";
     emptyMsg.hidden = false;
+    OFFICES.forEach((o) => renderOfficeAftenpostenStats(o.id, null));
     return;
   }
 
   canvas.style.display = "";
   emptyMsg.hidden = true;
-  tag.textContent = `Uke ${current.week}`;
+  tag.textContent = `Uke ${weekLabel}`;
 
-  const recordBadge = document.getElementById(`ap-record-${officeId}`);
-  const currentAvg = averageOf(current.days);
-  const bestAvg = weeks.length > 1 ? Math.max(...weeks.map((w) => averageOf(w.days) ?? -Infinity)) : null;
-  recordBadge.hidden = !(bestAvg !== null && currentAvg !== null && currentAvg >= bestAvg);
+  const entries = {};
+  OFFICES.forEach((o) => {
+    entries[o.id] = findWeekEntry(apWeeksData[o.id], weekLabel);
+    renderOfficeAftenpostenStats(o.id, entries[o.id]);
+  });
 
-  const played = current.days.filter((d) => d !== null);
-  const sum = played.reduce((a, b) => a + b, 0);
-  const avg = played.length ? sum / played.length : 0;
+  const emptyDays = [null, null, null, null, null];
 
-  statsEl.querySelector('[data-stat="sum"]').textContent = played.length ? sum : "–";
-  statsEl.querySelector('[data-stat="avg"]').textContent = played.length ? avg.toFixed(1) : "–";
-  statsEl.querySelector('[data-stat="days"]').textContent = `${played.length}/5`;
-
-  apChartInstance[officeId] = new Chart(canvas.getContext("2d"), {
+  apChartInstance = new Chart(canvas.getContext("2d"), {
     type: "bar",
     data: {
       labels: COLS.apDayLabels,
       datasets: [
         {
-          data: current.days,
+          label: "Oslo",
+          data: entries.oslo ? entries.oslo.days : emptyDays,
           backgroundColor: THEME.red,
           borderRadius: 2,
-          maxBarThickness: 42,
+          maxBarThickness: 22,
+        },
+        {
+          label: "Bergen",
+          data: entries.bergen ? entries.bergen.days : emptyDays,
+          backgroundColor: THEME.bergen,
+          borderRadius: 2,
+          maxBarThickness: 22,
         },
       ],
     },
@@ -462,13 +475,16 @@ function renderAftenpostenWeek(officeId) {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { display: false },
+        legend: { display: false }, // shown via .legend-row instead
         tooltip: {
           backgroundColor: THEME.ink,
           bodyFont: { family: "Special Elite", size: 12, weight: "600" },
           displayColors: false,
           callbacks: {
-            label: (ctx) => (ctx.parsed.y === null ? "Ikke spilt" : `${ctx.parsed.y} poeng`),
+            label: (ctx) =>
+              ctx.parsed.y === null
+                ? `${ctx.dataset.label}: ikke spilt`
+                : `${ctx.dataset.label}: ${ctx.parsed.y} poeng`,
           },
         },
       },
@@ -488,38 +504,78 @@ function renderAftenpostenWeek(officeId) {
   });
 }
 
-function renderMorgenbladetWeek(officeId) {
-  const tag = document.getElementById(`mb-week-tag-${officeId}`);
-  const numEl = document.getElementById(`mb-score-num-${officeId}`);
-  const verdictEl = document.getElementById(`mb-verdict-${officeId}`);
-  const prevBtn = document.getElementById(`mb-prev-${officeId}`);
-  const nextBtn = document.getElementById(`mb-next-${officeId}`);
+function renderOfficeAftenpostenStats(officeId, entry) {
+  const statsEl = document.getElementById(`ap-week-stats-${officeId}`);
+  const recordBadge = document.getElementById(`ap-record-${officeId}`);
+  const weeks = apWeeksData[officeId];
 
-  const weeks = mbWeeksData[officeId];
-  const idx = mbIndex[officeId];
-
-  prevBtn.disabled = idx <= 0;
-  nextBtn.disabled = idx >= weeks.length - 1;
-
-  const current = idx >= 0 ? weeks[idx] : null;
-
-  if (!current) {
-    tag.textContent = "Ingen data ennå";
-    numEl.textContent = "–";
-    verdictEl.textContent = "Venter på denne ukens resultat …";
+  if (!entry) {
+    statsEl.querySelector('[data-stat="sum"]').textContent = "–";
+    statsEl.querySelector('[data-stat="avg"]').textContent = "–";
+    statsEl.querySelector('[data-stat="days"]').textContent = "–";
+    recordBadge.hidden = true;
     return;
   }
 
-  tag.textContent = `Uke ${current.week}`;
-  numEl.textContent = current.score;
-  verdictEl.textContent = moodMessage(current.score);
+  const played = entry.days.filter((d) => d !== null);
+  const sum = played.reduce((a, b) => a + b, 0);
+  const avg = played.length ? sum / played.length : 0;
 
+  statsEl.querySelector('[data-stat="sum"]').textContent = played.length ? sum : "–";
+  statsEl.querySelector('[data-stat="avg"]').textContent = played.length ? avg.toFixed(1) : "–";
+  statsEl.querySelector('[data-stat="days"]').textContent = `${played.length}/5`;
+
+  const currentAvg = averageOf(entry.days);
+  const bestAvg = weeks.length > 1 ? Math.max(...weeks.map((w) => averageOf(w.days) ?? -Infinity)) : null;
+  recordBadge.hidden = !(bestAvg !== null && currentAvg !== null && currentAvg >= bestAvg);
+}
+
+function renderMorgenbladetWeek() {
+  const tag = document.getElementById("mb-week-tag");
+  const prevBtn = document.getElementById("mb-prev");
+  const nextBtn = document.getElementById("mb-next");
+
+  prevBtn.disabled = mbIndex <= 0;
+  nextBtn.disabled = mbIndex >= mbUnionWeeks.length - 1;
+
+  const weekLabel = mbIndex >= 0 ? mbUnionWeeks[mbIndex] : null;
+
+  if (!weekLabel) {
+    tag.textContent = "Ingen data ennå";
+    OFFICES.forEach((o) => renderOfficeMorgenbladetScore(o.id, null));
+    return;
+  }
+
+  tag.textContent = `Uke ${weekLabel}`;
+  OFFICES.forEach((o) => {
+    const entry = findWeekEntry(mbWeeksData[o.id], weekLabel);
+    renderOfficeMorgenbladetScore(o.id, entry);
+  });
+}
+
+function renderOfficeMorgenbladetScore(officeId, entry) {
+  const numEl = document.getElementById(`mb-score-num-${officeId}`);
+  const verdictEl = document.getElementById(`mb-verdict-${officeId}`);
   const recordBadge = document.getElementById(`mb-record-${officeId}`);
-  const bestScore = weeks.length > 1 ? Math.max(...weeks.map((w) => w.score)) : null;
-  recordBadge.hidden = !(bestScore !== null && current.score >= bestScore);
-
   const streakBadge = document.getElementById(`mb-streak-${officeId}`);
-  const streak = computeMbStreak(officeId, idx);
+  const weeks = mbWeeksData[officeId];
+
+  if (!entry) {
+    numEl.textContent = "–";
+    verdictEl.textContent = "Ingen resultat denne uken.";
+    recordBadge.hidden = true;
+    streakBadge.hidden = true;
+    return;
+  }
+
+  numEl.textContent = entry.score;
+  verdictEl.textContent = moodMessage(entry.score);
+
+  const bestScore = weeks.length > 1 ? Math.max(...weeks.map((w) => w.score)) : null;
+  recordBadge.hidden = !(bestScore !== null && entry.score >= bestScore);
+
+  const idxInOfficeWeeks = weeks.findIndex((w) => w.week === entry.week);
+  const streak = computeMbStreak(officeId, idxInOfficeWeeks);
   if (streak >= 2) {
     streakBadge.hidden = false;
     streakBadge.textContent = `\u{1F525} ${streak} uker over middels`;
