@@ -1,773 +1,757 @@
-/* ---------------------------------------------------------
-   Kontorquizen — design tokens
-   Old newsprint: sepia paper, oxblood + faded gold ink,
-   letterpress edges.
-   Display: Playfair Display (masthead) · Data: Special Elite
-   (typewriter) · Body: Old Standard TT
---------------------------------------------------------- */
-:root {
-  --paper: #E6DCC0;
-  --paper-raised: #EFE7CE;
-  --ink: #2B2013;
-  --ink-soft: #5B4E38;
-  --rule: #B8A67E;
-  --press-red: #7B2D26;
-  --mustard: #8C6A2B;
+/* =========================================================
+   Kontorquizen — config
 
-  --font-display: "Playfair Display", Georgia, serif;
-  --font-masthead: "UnifrakturCook", "Playfair Display", Georgia, serif;
-  --font-mono: "Special Elite", ui-monospace, monospace;
-  --font-body: "Old Standard TT", Georgia, serif;
+   Two office tabs in the same Google Sheet, same column layout:
+     - Oslo:   gid 0 (the original tab)
+     - Bergen: gid 1635601830
 
-  --radius: 1px;
+   Both tabs are expected to share the exact column layout below.
+   Sharing settings: Share ▸ General access ▸ "Anyone with the link"
+   ▸ Viewer, same as before — applies to the whole spreadsheet.
+   ========================================================= */
+
+const SHEET_ID = "1dhbJuSthEbjoDJhrP5NF6FmgeKiSocucrFgnc0p5aVU";
+const GID_OSLO = "0";
+const GID_BERGEN = "1635601830";
+
+const CSV_URL_OSLO = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID_OSLO}`;
+const CSV_URL_BERGEN = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID_BERGEN}`;
+
+const OFFICES = [
+  { id: "oslo", label: "Oslo", csvUrl: CSV_URL_OSLO },
+  { id: "bergen", label: "Bergen", csvUrl: CSV_URL_BERGEN },
+];
+
+// Column layout, matching the sheet screenshot:
+// A: Uke | B-F: Man-Fre (Aftenposten)   ...gap...   I: Uke | J: Score (Morgenbladet)
+const COLS = {
+  apWeek: 0,
+  apDays: [1, 2, 3, 4, 5],
+  apDayLabels: ["Man", "Tir", "Ons", "Tor", "Fre"],
+  mbWeek: 8,
+  mbScore: 9,
+};
+
+const DATA_START_ROW = 2; // rows 0 and 1 are the two header rows
+const MB_MAX = 20;
+const MB_STREAK_THRESHOLD = MB_MAX / 2;
+
+// QUOTES is defined in quotes.js (loaded before this file) as
+// [{ q: "...", a: "Author Name" }, ...]
+
+/* ========================================================= */
+
+const THEME = {
+  ink: "#2B2013",
+  inkSoft: "#5B4E38",
+  rule: "#B8A67E",
+  red: "#7B2D26",
+  gold: "#8C6A2B",
+  bergen: "#3B5A66",
+  paperRaised: "#EFE7CE",
+};
+
+// Module-level state, keyed by office id, for the raw per-office data.
+// The "this week" view itself is browsed by a SINGLE shared index per
+// quiz, stepping through the union of weeks across both offices —
+// each render looks up whichever office has data for that week label.
+let apWeeksData = { oslo: [], bergen: [] };
+let mbWeeksData = { oslo: [], bergen: [] };
+let apUnionWeeks = [];
+let mbUnionWeeks = [];
+let apIndex = -1;
+let mbIndex = -1;
+let apChartInstance = null;
+
+document.addEventListener("DOMContentLoaded", init);
+
+async function init() {
+  setEdition();
+  setupTabs();
+  setupPrintButton();
+  renderFunDayBanner();
+  renderWikiNews();
+  renderWeather();
+
+  const results = await Promise.allSettled(OFFICES.map((o) => fetchSheet(o.csvUrl)));
+
+  let anySuccess = false;
+  results.forEach((result, i) => {
+    const officeId = OFFICES[i].id;
+    if (result.status === "fulfilled") {
+      anySuccess = true;
+      const dataRows = result.value.slice(DATA_START_ROW);
+      apWeeksData[officeId] = extractAftenpostenWeeks(dataRows);
+      mbWeeksData[officeId] = extractMorgenbladetWeeks(dataRows);
+    } else {
+      console.error(`Kunne ikke hente ${OFFICES[i].label}-arket:`, result.reason);
+      apWeeksData[officeId] = [];
+      mbWeeksData[officeId] = [];
+    }
+  });
+
+  if (!anySuccess) {
+    showStatus(
+      "Kunne ikke hente data fra arkene. Sjekk at de er delt med \u00abAlle med lenken\u00bb, og at SHEET_ID i script.js er riktig."
+    );
+    return;
+  }
+
+  apUnionWeeks = computeUnionWeeks(apWeeksData);
+  mbUnionWeeks = computeUnionWeeks(mbWeeksData);
+  apIndex = apUnionWeeks.length - 1;
+  mbIndex = mbUnionWeeks.length - 1;
+
+  setupWeekNav();
+  try {
+    renderAftenpostenWeek();
+  } catch (err) {
+    console.error("Feil under rendering av Aftenposten-uken:", err);
+  }
+  try {
+    renderMorgenbladetWeek();
+  } catch (err) {
+    console.error("Feil under rendering av Morgenbladet-uken:", err);
+  }
+  try {
+    renderOverTime();
+  } catch (err) {
+    console.error("Feil under rendering av Over tid-grafen:", err);
+  }
 }
 
-* { box-sizing: border-box; }
-
-@media (prefers-reduced-motion: no-preference) {
-  .column, .masthead, .overtime { animation: rise 0.6s ease-out both; }
-  .column--weekly { animation-delay: 0.08s; }
-  .record-badge:not([hidden]) { animation: stampIn 0.4s ease-out both; }
-}
-@keyframes rise {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-@keyframes stampIn {
-  from { opacity: 0; transform: scale(1.6) rotate(-8deg); }
-  to { opacity: 1; transform: scale(1) rotate(-4deg); }
+function computeUnionWeeks(dataByOffice) {
+  const weekSet = new Set();
+  OFFICES.forEach((o) => dataByOffice[o.id].forEach((w) => weekSet.add(w.week)));
+  return [...weekSet].sort((a, b) => Number(a) - Number(b));
 }
 
-html {
-  background: var(--paper);
-  font-size: 112.5%; /* 18px base — larger overall type scale */
+function findWeekEntry(weeksArr, weekLabel) {
+  return weeksArr.find((w) => w.week === weekLabel) || null;
 }
 
-body {
-  margin: 0;
-  background:
-    radial-gradient(ellipse 500px 320px at 8% 6%, rgba(123,45,38,0.05), transparent 60%),
-    radial-gradient(ellipse 460px 300px at 94% 92%, rgba(90,70,20,0.06), transparent 60%),
-    radial-gradient(ellipse 900px 700px at 50% 40%, transparent 55%, rgba(43,32,19,0.10) 100%),
-    repeating-linear-gradient(0deg, rgba(43,32,19,0.02) 0px, rgba(43,32,19,0.02) 1px, transparent 1px, transparent 3px),
-    var(--paper);
-  color: var(--ink);
-  font-family: var(--font-body);
-  line-height: 1.55;
-  -webkit-font-smoothing: antialiased;
+/* ---------- Week navigation (prev/next) ---------- */
+
+function setupWeekNav() {
+  document.getElementById("ap-prev").addEventListener("click", () => {
+    if (apIndex > 0) { apIndex--; renderAftenpostenWeek(); }
+  });
+  document.getElementById("ap-next").addEventListener("click", () => {
+    if (apIndex < apUnionWeeks.length - 1) { apIndex++; renderAftenpostenWeek(); }
+  });
+  document.getElementById("mb-prev").addEventListener("click", () => {
+    if (mbIndex > 0) { mbIndex--; renderMorgenbladetWeek(); }
+  });
+  document.getElementById("mb-next").addEventListener("click", () => {
+    if (mbIndex < mbUnionWeeks.length - 1) { mbIndex++; renderMorgenbladetWeek(); }
+  });
 }
 
-/* ---------- Masthead ---------- */
+/* ---------- Fun & food days ---------- */
 
-.masthead {
-  position: relative;
-  max-width: 1040px;
-  margin: 0 auto;
-  padding: 34px 24px 0;
+function renderFunDayBanner() {
+  const el = document.getElementById("funday-banner");
+  const { today, tomorrow } = getFunDayBanner();
+
+  const lines = [];
+  if (today.length) {
+    lines.push(`Hurra, i dag er det ${joinNorwegian(today)}!`);
+  }
+  if (tomorrow.length) {
+    lines.push(`I morgen er det ${joinNorwegian(tomorrow)}.`);
+  }
+
+  if (!lines.length) {
+    el.hidden = true;
+    return;
+  }
+
+  el.innerHTML = lines.map((line) => `<p>${line}</p>`).join("");
+  el.hidden = false;
 }
 
-.masthead__price {
-  display: inline-block;
-  margin-bottom: 8px;
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  letter-spacing: 0.03em;
-  color: var(--ink-soft);
-  border: 1px solid var(--ink-soft);
-  padding: 3px 9px;
-}
-
-.masthead__rule {
-  height: 4px;
-  border-top: 3px double var(--ink);
-}
-.masthead__rule--thick {
-  margin-top: 16px;
-  border-top-width: 4px;
-}
-
-.masthead__row {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 6px;
-  padding: 12px 0 4px;
-}
-
-.masthead__eyebrow {
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  white-space: nowrap;
-}
-
-.masthead__title {
-  font-family: var(--font-masthead);
-  font-weight: 700;
-  font-size: clamp(3rem, 12vw, 5.6rem);
-  letter-spacing: 0.01em;
-  margin: 0;
-  text-align: center;
-  text-shadow: 0 1px 0 rgba(255,255,255,0.35), 0 -1px 0 rgba(43,32,19,0.15);
-}
-
-.masthead__deck {
-  text-align: center;
-  font-style: italic;
-  color: var(--ink-soft);
-  margin: 0 0 4px;
-  font-size: clamp(0.88rem, 2.6vw, 1rem);
-}
-
-.masthead__quote {
-  text-align: center;
-  font-family: var(--font-mono);
-  font-size: 0.88rem;
-  color: var(--press-red);
-  letter-spacing: 0.01em;
-  margin: 0 auto 14px;
-  max-width: 60ch;
-  line-height: 1.5;
-}
-.masthead__quote::before { content: "\2767  "; }
-.masthead__quote::after { content: "  \2767"; }
-
-.print-btn {
-  display: block;
-  margin: 0 auto 18px;
-  font-family: var(--font-mono);
-  font-size: 0.9rem;
-  letter-spacing: 0.01em;
-  background: var(--paper-raised);
-  border: 1px solid var(--ink-soft);
-  color: var(--ink);
-  padding: 8px 18px;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-.print-btn:hover { background: var(--paper); }
-
-/* ---------- Tabs ---------- */
-
-.tabs {
-  max-width: 1040px;
-  margin: 4px auto 0;
-  padding: 0 24px;
-  display: flex;
-  justify-content: center;
-  gap: 0;
-}
-
-.tabs__btn {
-  font-family: var(--font-mono);
-  font-size: 0.9rem;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  background: var(--paper-raised);
-  border: 1px solid var(--ink-soft);
-  color: var(--ink-soft);
-  padding: 10px 24px;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-.tabs__btn:first-child { border-right: none; }
-
-.tabs__btn.is-active {
-  background: var(--ink);
-  color: var(--paper-raised);
-  border-color: var(--ink);
-}
-.tabs__btn:hover:not(.is-active) {
-  background: var(--paper);
-}
-
-/* ---------- Spread / columns ---------- */
-
-main {
-  max-width: 1040px;
-  margin: 0 auto;
-  padding: 0 24px;
-}
-
-.spread {
-  margin: 28px 0;
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 36px;
-}
-
-.gutter {
-  display: none;
-  width: 1px;
-  background: repeating-linear-gradient(0deg, var(--rule) 0px, var(--rule) 4px, transparent 4px, transparent 8px);
-}
-
-.column { position: relative; }
-
-.column__head {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 10px;
-  margin-bottom: 14px;
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-.column__logo-plate {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.column__logo {
-  display: block;
-  height: clamp(72px, 22vw, 108px);
-  max-width: min(85vw, 300px);
-  width: auto;
-  object-fit: contain;
-  filter: sepia(0.25) contrast(1.05);
-}
-
-/* Aftenposten's logo mark renders visually smaller than Morgenbladet's
-   at the same height — sized up independently to match. */
-#logo {
-  height: clamp(100px, 30vw, 150px);
-  max-width: min(85vw, 340px);
-}
-
-.column__kicker {
-  display: block;
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-
-.column--daily .column__kicker { color: var(--press-red); }
-.column--weekly .column__kicker { color: var(--mustard); }
-
-.column__title {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 1.8rem;
-  margin: 2px 0 0;
-}
-
-/* ---------- Week nav + badges ---------- */
-
-.week-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin: 0 0 8px;
-  padding-bottom: 10px;
-  border-bottom: 2px solid var(--rule);
-}
-
-.office-panel__label,
-.stat-col__label {
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  margin: 0 0 8px;
-  text-align: center;
-}
-
-.legend-row--compact {
-  margin: 4px 0 12px;
-}
-
-.stat-columns,
-.score-columns {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-top: 16px;
-}
-
-.stat-col {
-  text-align: center;
-}
-.stat-col .stat-row {
-  margin-top: 0;
-}
-.stat-col .record-badge {
-  margin-top: 10px;
-}
-
-.score-col {
-  text-align: center;
-  background: var(--paper-raised);
-  border: 1px solid var(--ink-soft);
-  box-shadow: 3px 3px 0 rgba(43,32,19,0.08);
-  border-radius: var(--radius);
-  padding: 16px 10px;
-}
-
-.score-big--compact .score-big__num {
-  font-size: clamp(2.2rem, 9vw, 3.2rem);
-}
-.score-verdict--compact {
-  font-size: 0.92rem;
-  margin-top: 10px;
-}
-
-.week-tag {
-  font-family: var(--font-mono);
-  font-size: 0.95rem;
-  color: var(--ink-soft);
-  margin: 0;
-  flex: 1;
-  text-align: center;
-}
-
-.week-nav__btn {
-  font-family: var(--font-mono);
-  font-size: 1.2rem;
-  line-height: 1;
-  background: var(--paper-raised);
-  border: 1px solid var(--ink-soft);
-  border-radius: var(--radius);
-  color: var(--ink);
-  width: 44px;
-  height: 44px;
-  cursor: pointer;
-  transition: background 0.15s ease, opacity 0.15s ease;
-  flex-shrink: 0;
-}
-.week-nav__btn:hover:not(:disabled) { background: var(--paper); }
-.week-nav__btn:disabled { opacity: 0.3; cursor: default; }
-
-.record-badge {
-  display: inline-block;
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  color: var(--press-red);
-  border: 1px solid var(--press-red);
-  padding: 4px 11px;
-  transform: rotate(-4deg);
-  margin: 8px 0 0;
-}
-
-.badge-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: center;
-  margin-top: 14px;
-}
-
-.streak-badge {
-  display: inline-block;
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  color: var(--mustard);
-  border: 1px solid var(--mustard);
-  padding: 4px 11px;
-}
-
-/* ---------- Stat row ---------- */
-
-.stat-row {
-  display: flex;
-  border-top: 1px solid var(--rule);
-  border-bottom: 1px solid var(--rule);
-  margin-top: 16px;
-}
-
-.stat {
-  flex: 1;
-  padding: 10px 4px;
-  text-align: center;
-  border-left: 1px solid var(--rule);
-}
-.stat:first-child { border-left: none; }
-
-.stat__value {
-  display: block;
-  font-family: var(--font-mono);
-  font-size: 1.5rem;
-}
-.column--daily .stat__value { color: var(--press-red); }
-.column--weekly .stat__value { color: var(--mustard); }
-
-.stat__label {
-  display: block;
-  font-size: 0.8rem;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  margin-top: 2px;
-}
-
-/* ---------- Chart ---------- */
-
-.chart-frame {
-  position: relative;
-  background: var(--paper-raised);
-  border: 1px solid var(--ink-soft);
-  box-shadow: 3px 3px 0 rgba(43,32,19,0.08);
-  border-radius: var(--radius);
-  padding: 16px 12px;
-}
-
-.chart-frame--week { height: 240px; }
-.chart-frame--wide { height: 380px; }
-
-.chart-empty {
-  position: absolute;
-  inset: 0;
-  align-items: center;
-  justify-content: center;
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: 1rem;
-  color: var(--ink-soft);
-  text-align: center;
-  padding: 0 20px;
-}
-.chart-empty:not([hidden]) { display: flex; }
-
-/* ---------- Morgenbladet score block ---------- */
-
-.score-frame {
-  background: var(--paper-raised);
-  border: 1px solid var(--ink-soft);
-  box-shadow: 3px 3px 0 rgba(43,32,19,0.08);
-  border-radius: var(--radius);
-  padding: 32px 20px;
-  text-align: center;
-  min-height: 240px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.score-big {
-  display: flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 6px;
-}
-
-.score-big__num {
-  font-family: var(--font-display);
-  font-weight: 900;
-  font-size: clamp(3.2rem, 16vw, 5.5rem);
-  line-height: 1;
-  color: var(--mustard);
-  text-shadow: 2px 2px 0 rgba(43,32,19,0.1);
-}
-
-.score-big__den {
-  font-family: var(--font-mono);
-  font-size: 1.5rem;
-  color: var(--ink-soft);
-}
-
-.score-verdict {
-  margin: 18px 0 0;
-  font-family: var(--font-body);
-  font-style: italic;
-  font-size: 1.2rem;
-  color: var(--ink);
-  max-width: 34ch;
-}
-
-/* ---------- Over-time view ---------- */
-
-.overtime {
-  margin: 28px 0 40px;
-}
-
-.overtime__head {
-  margin-bottom: 4px;
-}
-
-.legend-row {
-  display: flex;
-  gap: 18px;
-  margin: 10px 0 14px;
-  flex-wrap: wrap;
-}
-
-.legend-chip {
-  font-family: var(--font-mono);
-  font-size: 0.88rem;
-  color: var(--ink-soft);
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.legend-chip i {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-}
-
-.legend-chip__line {
-  width: 18px !important;
-  height: 0 !important;
-  border-radius: 0 !important;
-  border-top-width: 2px;
-  border-top-style: solid;
-}
-.legend-chip__line--dashed {
-  border-top-style: dashed;
+function joinNorwegian(names) {
+  if (names.length === 1) return names[0];
+  return `${names.slice(0, -1).join(", ")} og ${names[names.length - 1]}`;
 }
 
 /* ---------- Værmelding ---------- */
 
-.weather {
-  margin: 28px 0;
+async function renderWeather() {
+  const grid = document.getElementById("weather-grid");
+  const timeLabel = nowTimeLabel();
+  grid.innerHTML = WEATHER_LOCATIONS.map((loc, i) => `
+    <div class="weather-col" id="weather-col-${i}">
+      <h3 class="weather-col__title">${escapeHtml(loc.name)} <span class="weather-col__time" id="weather-time-${i}">${timeLabel}</span></h3>
+      <p class="chart-empty news-empty weather-loading">Henter værdata …</p>
+    </div>
+  `).join("");
+
+  await Promise.all(WEATHER_LOCATIONS.map((loc, i) => renderWeatherColumn(loc, i)));
+  startWeatherClock();
 }
 
-.weather__head {
-  margin-bottom: 16px;
+let weatherClockInterval = null;
+
+function startWeatherClock() {
+  if (weatherClockInterval) return; // already running
+  weatherClockInterval = setInterval(() => {
+    const timeLabel = nowTimeLabel();
+    WEATHER_LOCATIONS.forEach((loc, i) => {
+      const el = document.getElementById(`weather-time-${i}`);
+      if (el) el.textContent = timeLabel;
+    });
+  }, 1000);
 }
 
-.weather-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 28px;
+function nowTimeLabel() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-.weather-col + .weather-col {
-  padding-top: 24px;
-  border-top: 1px dashed var(--rule);
+async function renderWeatherColumn(loc, index) {
+  const col = document.getElementById(`weather-col-${index}`);
+  const timeLabel = nowTimeLabel();
+  try {
+    const hours = await fetchTodayHourly(loc.lat, loc.lon);
+    if (!hours.length) throw new Error("Ingen timesdata for i dag");
+
+    let html = `<h3 class="weather-col__title">${escapeHtml(loc.name)} <span class="weather-col__time" id="weather-time-${index}">${timeLabel}</span></h3>`;
+    html += `<div class="weather-hours">`;
+    html += hours
+      .map((h) => {
+        const info = symbolInfo(h.symbol);
+        const temp = typeof h.temp === "number" ? `${Math.round(h.temp)}\u00B0` : "\u2014";
+        return `
+          <div class="weather-hour">
+            <span class="weather-hour__time">${String(h.hour).padStart(2, "0")}</span>
+            <span class="weather-hour__icon" title="${escapeHtml(info.label)}">${info.icon}</span>
+            <span class="weather-hour__temp">${temp}</span>
+          </div>`;
+      })
+      .join("");
+    html += `</div>`;
+
+    if (loc.nowcast) {
+      html += `<div class="weather-nowcast" id="weather-nowcast-${index}">Henter nedbørsvarsel …</div>`;
+    }
+
+    col.innerHTML = html;
+
+    if (loc.nowcast) {
+      renderNowcast(loc, index).catch((err) => {
+        console.error(err);
+        const el = document.getElementById(`weather-nowcast-${index}`);
+        if (el) el.textContent = "Kunne ikke hente nedbørsvarsel akkurat nå.";
+      });
+    }
+  } catch (err) {
+    console.error(err);
+    col.innerHTML = `
+      <h3 class="weather-col__title">${escapeHtml(loc.name)} <span class="weather-col__time" id="weather-time-${index}">${timeLabel}</span></h3>
+      <p class="chart-empty news-empty">Kunne ikke hente værdata for ${escapeHtml(loc.name)} akkurat nå.</p>`;
+  }
 }
 
-.weather-col__title {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 1.25rem;
-  margin: 0 0 10px;
+async function renderNowcast(loc, index) {
+  const summary = await fetchNowcastSummary(loc.lat, loc.lon);
+  const el = document.getElementById(`weather-nowcast-${index}`);
+  if (!el) return;
+  el.textContent = summary.rain
+    ? summary.minutes <= 2
+      ? "\u2602\uFE0F Regn like om hjørnet."
+      : `\u2602\uFE0F Regn ventet om ca. ${summary.minutes} minutter.`
+    : "\u2600\uFE0F Ingen nedbør ventet de neste 90 minuttene.";
 }
 
-.weather-col__time {
-  font-family: var(--font-mono);
-  font-weight: 400;
-  font-size: 0.85rem;
-  color: var(--ink-soft);
-}
+/* ---------- Wikipedia "Aktuelt" ---------- */
 
-.weather-hours {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 4px 0;
-}
+async function renderWikiNews() {
+  const listEl = document.getElementById("news-list");
+  const emptyEl = document.getElementById("news-empty");
 
-.weather-hour {
-  flex: 0 0 auto;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
+  try {
+    const items = await fetchWikiAktuelt();
+    if (!items.length) throw new Error("Tom liste fra Wikipedia");
 
-.weather-hour__time {
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-  color: var(--ink-soft);
-}
-
-.weather-hour__icon {
-  font-size: 1.3rem;
-  line-height: 1;
-}
-
-.weather-hour__temp {
-  font-family: var(--font-mono);
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.weather-nowcast {
-  margin-top: 12px;
-  padding: 10px 14px;
-  text-align: center;
-  font-family: var(--font-mono);
-  font-size: 0.9rem;
-  border: 1px dashed var(--rule);
-}
-
-.weather-loading {
-  position: static;
-  display: block;
-  margin: 0;
-  padding: 16px;
-  text-align: center;
-}
-
-/* ---------- Newsroom: special days + Wikipedia Aktuelt ---------- */
-
-.newsroom {
-  margin: 8px 0 40px;
-  padding-top: 24px;
-  border-top: 3px double var(--ink);
-}
-
-.newsroom__head {
-  margin-bottom: 4px;
-}
-
-.newsroom__head--second {
-  margin-top: 32px;
-  padding-top: 24px;
-  border-top: 1px dashed var(--rule);
-}
-
-.funday-banner {
-  margin: 16px 0;
-  padding: 10px 0;
-  text-align: center;
-  border-top: 1px dashed var(--rule);
-  border-bottom: 1px dashed var(--rule);
-}
-
-.funday-banner p {
-  margin: 4px 0;
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  color: var(--ink);
-}
-.funday-banner p::before { content: "\1F389  "; }
-
-.news-list {
-  list-style: none;
-  margin: 16px 0 0;
-  padding: 0;
-}
-
-.news-list li {
-  padding: 12px 0;
-  border-top: 1px solid var(--rule);
-  font-size: 0.98rem;
-  line-height: 1.5;
-}
-.news-list li:last-child { border-bottom: 1px solid var(--rule); }
-
-.news-list li::before {
-  content: "\2014  ";
-  color: var(--press-red);
-  font-family: var(--font-mono);
-}
-
-.news-list a {
-  color: var(--ink);
-  text-decoration: none;
-  border-bottom: 1px solid var(--rule);
-}
-.news-list a:hover {
-  color: var(--press-red);
-  border-bottom-color: var(--press-red);
-}
-
-.news-empty {
-  position: static;
-  display: block;
-  margin: 16px 0 0;
-  padding: 16px;
-  text-align: center;
-}
-
-/* ---------- Status / footer ---------- */
-
-.status-line {
-  max-width: 1040px;
-  margin: 14px auto 0;
-  padding: 0 24px;
-  font-family: var(--font-mono);
-  font-size: 0.92rem;
-  color: var(--press-red);
-  text-align: center;
-}
-
-.colophon {
-  max-width: 1040px;
-  margin: 0 auto;
-  padding: 20px 24px 40px;
-  border-top: 3px double var(--ink);
-  text-align: center;
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  letter-spacing: 0.02em;
-  color: var(--ink-soft);
-}
-
-/* ---------- Larger screens: two-column spread ---------- */
-
-@media (min-width: 761px) {
-  .masthead__price {
-    position: absolute;
-    top: 8px;
-    right: 24px;
-    margin-bottom: 0;
-    transform: rotate(2deg);
+    listEl.innerHTML = items
+      .map((item) => {
+        const text = escapeHtml(item.text);
+        return item.url
+          ? `<li><a href="${item.url}" target="_blank" rel="noopener">${text}</a></li>`
+          : `<li>${text}</li>`;
+      })
+      .join("");
+    listEl.hidden = false;
+    emptyEl.hidden = true;
+  } catch (err) {
+    console.error(err);
+    listEl.hidden = true;
+    emptyEl.hidden = false;
+    emptyEl.textContent = "Kunne ikke hente aktuelt-saker fra Wikipedia akkurat nå.";
   }
 
-  .masthead__row {
-    flex-direction: row;
-    align-items: baseline;
-    justify-content: space-between;
-    text-align: initial;
-    gap: 16px;
-  }
-  .masthead__title { flex: 1; }
+  renderOnThisDay();
+}
 
-  .spread {
-    grid-template-columns: 1fr auto 1fr;
-    gap: 0 28px;
-  }
-  .gutter { display: block; }
+async function renderOnThisDay() {
+  const listEl = document.getElementById("onthisday-list");
+  const emptyEl = document.getElementById("onthisday-empty");
 
-  .column--daily { transform: rotate(-0.25deg); }
-  .column--weekly { transform: rotate(0.25deg); }
+  try {
+    const items = await fetchOnThisDayTop5();
+    if (!items.length) throw new Error("Tom liste fra Wikipedia");
 
-  .column__head {
-    flex-direction: row;
-    text-align: left;
-    gap: 14px;
+    listEl.innerHTML = items
+      .map((item) => {
+        const text = escapeHtml(item.text);
+        return item.url
+          ? `<li><a href="${item.url}" target="_blank" rel="noopener">${text}</a></li>`
+          : `<li>${text}</li>`;
+      })
+      .join("");
+    listEl.hidden = false;
+    emptyEl.hidden = true;
+  } catch (err) {
+    console.error(err);
+    listEl.hidden = true;
+    emptyEl.hidden = false;
+    emptyEl.textContent = "Kunne ikke hente dagens historiske hendelser akkurat nå.";
   }
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
 }
 
 /* ---------- Print ---------- */
 
-@media print {
-  .tabs, .print-btn, .week-nav__btn, .masthead__price, .funday-banner { display: none !important; }
-  body { background: #fff; }
-  #view-week, #view-overtime { display: block !important; }
+function setupPrintButton() {
+  document.getElementById("print-btn").addEventListener("click", () => window.print());
 }
 
-/* ---------- Focus visibility ---------- */
+/* ---------- Tabs ---------- */
 
-:focus-visible {
-  outline: 2px solid var(--press-red);
-  outline-offset: 2px;
+function setupTabs() {
+  const tabWeek = document.getElementById("tab-week");
+  const tabOvertime = document.getElementById("tab-overtime");
+  const viewWeek = document.getElementById("view-week");
+  const viewOvertime = document.getElementById("view-overtime");
+
+  function activate(tab) {
+    const showWeek = tab === "week";
+    viewWeek.hidden = !showWeek;
+    viewOvertime.hidden = showWeek;
+    tabWeek.classList.toggle("is-active", showWeek);
+    tabOvertime.classList.toggle("is-active", !showWeek);
+    tabWeek.setAttribute("aria-selected", String(showWeek));
+    tabOvertime.setAttribute("aria-selected", String(!showWeek));
+  }
+
+  tabWeek.addEventListener("click", () => activate("week"));
+  tabOvertime.addEventListener("click", () => activate("overtime"));
+}
+
+/* ---------- Fetch + parse ---------- */
+
+async function fetchSheet(url) {
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Sheet fetch failed: ${res.status}`);
+  const text = await res.text();
+  return parseCSV(text);
+}
+
+// Minimal CSV parser — handles quoted fields containing commas.
+function parseCSV(text) {
+  const rows = [];
+  let row = [];
+  let field = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"' && text[i + 1] === '"') { field += '"'; i++; }
+      else if (c === '"') { inQuotes = false; }
+      else { field += c; }
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ",") { row.push(field); field = ""; }
+      else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+      else if (c === "\r") { /* skip */ }
+      else { field += c; }
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+/* ---------- Extraction ----------
+   Both return an array of week objects, in sheet order (oldest to newest),
+   skipping weeks with no data at all. */
+
+function extractAftenpostenWeeks(rows) {
+  const weeks = [];
+  for (const row of rows) {
+    const week = (row[COLS.apWeek] || "").trim();
+    if (!week) continue;
+    const days = COLS.apDays.map((colIndex, i) => {
+      const raw = (row[colIndex] || "").trim();
+      if (raw === "") return null;
+      const value = Number(raw.replace(",", "."));
+      return Number.isNaN(value) ? null : value;
+    });
+    if (days.every((d) => d === null)) continue;
+    weeks.push({ week, days });
+  }
+  return weeks;
+}
+
+function extractMorgenbladetWeeks(rows) {
+  const weeks = [];
+  for (const row of rows) {
+    const week = (row[COLS.mbWeek] || "").trim();
+    const raw = (row[COLS.mbScore] || "").trim();
+    if (!week || raw === "") continue;
+    const value = Number(raw.replace(",", "."));
+    if (Number.isNaN(value)) continue;
+    weeks.push({ week, score: value });
+  }
+  return weeks;
+}
+
+/* ---------- View: this week ---------- */
+
+function renderAftenpostenWeek() {
+  const tag = document.getElementById("ap-week-tag");
+  const canvas = document.getElementById("ap-week-chart");
+  const emptyMsg = document.getElementById("ap-week-empty");
+  const prevBtn = document.getElementById("ap-prev");
+  const nextBtn = document.getElementById("ap-next");
+
+  prevBtn.disabled = apIndex <= 0;
+  nextBtn.disabled = apIndex >= apUnionWeeks.length - 1;
+
+  if (apChartInstance) {
+    apChartInstance.destroy();
+    apChartInstance = null;
+  }
+
+  const weekLabel = apIndex >= 0 ? apUnionWeeks[apIndex] : null;
+
+  if (!weekLabel) {
+    tag.textContent = "Ingen data ennå";
+    canvas.style.display = "none";
+    emptyMsg.hidden = false;
+    OFFICES.forEach((o) => renderOfficeAftenpostenStats(o.id, null));
+    return;
+  }
+
+  canvas.style.display = "";
+  emptyMsg.hidden = true;
+  tag.textContent = `Uke ${weekLabel}`;
+
+  const entries = {};
+  OFFICES.forEach((o) => {
+    entries[o.id] = findWeekEntry(apWeeksData[o.id], weekLabel);
+    renderOfficeAftenpostenStats(o.id, entries[o.id]);
+  });
+
+  const emptyDays = [null, null, null, null, null];
+
+  apChartInstance = new Chart(canvas.getContext("2d"), {
+    type: "bar",
+    data: {
+      labels: COLS.apDayLabels,
+      datasets: [
+        {
+          label: "Oslo",
+          data: entries.oslo ? entries.oslo.days : emptyDays,
+          backgroundColor: THEME.red,
+          borderRadius: 2,
+          maxBarThickness: 22,
+        },
+        {
+          label: "Bergen",
+          data: entries.bergen ? entries.bergen.days : emptyDays,
+          backgroundColor: THEME.bergen,
+          borderRadius: 2,
+          maxBarThickness: 22,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }, // shown via .legend-row instead
+        tooltip: {
+          backgroundColor: THEME.ink,
+          bodyFont: { family: "Special Elite", size: 12, weight: "600" },
+          displayColors: false,
+          callbacks: {
+            label: (ctx) =>
+              ctx.parsed.y === null
+                ? `${ctx.dataset.label}: ikke spilt`
+                : `${ctx.dataset.label}: ${ctx.parsed.y} poeng`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: THEME.inkSoft, font: { family: "Special Elite", size: 11 } },
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: THEME.rule },
+          border: { display: false },
+          ticks: { color: THEME.inkSoft, font: { family: "Special Elite", size: 10 }, precision: 0 },
+        },
+      },
+    },
+  });
+}
+
+function renderOfficeAftenpostenStats(officeId, entry) {
+  const statsEl = document.getElementById(`ap-week-stats-${officeId}`);
+  const recordBadge = document.getElementById(`ap-record-${officeId}`);
+  const weeks = apWeeksData[officeId];
+
+  if (!entry) {
+    statsEl.querySelector('[data-stat="sum"]').textContent = "–";
+    statsEl.querySelector('[data-stat="avg"]').textContent = "–";
+    statsEl.querySelector('[data-stat="days"]').textContent = "–";
+    recordBadge.hidden = true;
+    return;
+  }
+
+  const played = entry.days.filter((d) => d !== null);
+  const sum = played.reduce((a, b) => a + b, 0);
+  const avg = played.length ? sum / played.length : 0;
+
+  statsEl.querySelector('[data-stat="sum"]').textContent = played.length ? sum : "–";
+  statsEl.querySelector('[data-stat="avg"]').textContent = played.length ? avg.toFixed(1) : "–";
+  statsEl.querySelector('[data-stat="days"]').textContent = `${played.length}/5`;
+
+  const currentAvg = averageOf(entry.days);
+  const bestAvg = weeks.length > 1 ? Math.max(...weeks.map((w) => averageOf(w.days) ?? -Infinity)) : null;
+  recordBadge.hidden = !(bestAvg !== null && currentAvg !== null && currentAvg >= bestAvg);
+}
+
+function renderMorgenbladetWeek() {
+  const tag = document.getElementById("mb-week-tag");
+  const prevBtn = document.getElementById("mb-prev");
+  const nextBtn = document.getElementById("mb-next");
+
+  prevBtn.disabled = mbIndex <= 0;
+  nextBtn.disabled = mbIndex >= mbUnionWeeks.length - 1;
+
+  const weekLabel = mbIndex >= 0 ? mbUnionWeeks[mbIndex] : null;
+
+  if (!weekLabel) {
+    tag.textContent = "Ingen data ennå";
+    OFFICES.forEach((o) => renderOfficeMorgenbladetScore(o.id, null));
+    return;
+  }
+
+  tag.textContent = `Uke ${weekLabel}`;
+  OFFICES.forEach((o) => {
+    const entry = findWeekEntry(mbWeeksData[o.id], weekLabel);
+    renderOfficeMorgenbladetScore(o.id, entry);
+  });
+}
+
+function renderOfficeMorgenbladetScore(officeId, entry) {
+  const numEl = document.getElementById(`mb-score-num-${officeId}`);
+  const verdictEl = document.getElementById(`mb-verdict-${officeId}`);
+  const recordBadge = document.getElementById(`mb-record-${officeId}`);
+  const streakBadge = document.getElementById(`mb-streak-${officeId}`);
+  const weeks = mbWeeksData[officeId];
+
+  if (!entry) {
+    numEl.textContent = "–";
+    verdictEl.textContent = "Ingen resultat denne uken.";
+    recordBadge.hidden = true;
+    streakBadge.hidden = true;
+    return;
+  }
+
+  numEl.textContent = entry.score;
+  verdictEl.textContent = moodMessage(entry.score);
+
+  const bestScore = weeks.length > 1 ? Math.max(...weeks.map((w) => w.score)) : null;
+  recordBadge.hidden = !(bestScore !== null && entry.score >= bestScore);
+
+  const idxInOfficeWeeks = weeks.findIndex((w) => w.week === entry.week);
+  const streak = computeMbStreak(officeId, idxInOfficeWeeks);
+  if (streak >= 2) {
+    streakBadge.hidden = false;
+    streakBadge.textContent = `\u{1F525} ${streak} uker over middels`;
+  } else {
+    streakBadge.hidden = true;
+  }
+}
+
+function computeMbStreak(officeId, uptoIndex) {
+  const weeks = mbWeeksData[officeId];
+  let streak = 0;
+  for (let i = uptoIndex; i >= 0; i--) {
+    if (weeks[i].score >= MB_STREAK_THRESHOLD) streak++;
+    else break;
+  }
+  return streak;
+}
+
+function averageOf(days) {
+  const played = days.filter((d) => d !== null);
+  return played.length ? played.reduce((a, b) => a + b, 0) / played.length : null;
+}
+
+function moodMessage(score) {
+  const pct = score / MB_MAX;
+  if (pct >= 0.9) return "Glitrende. Er du sikker på at du ikke jobber i redaksjonen?";
+  if (pct >= 0.7) return "Solid uke. Du følger tydeligvis med i tiden.";
+  if (pct >= 0.5) return "Middels. Godkjent, men Morgenbladet fortjener bedre.";
+  if (pct >= 0.25) return "Svakt. Har avisen egentlig blitt åpnet denne uken?";
+  return "Katastrofalt. Vurder et abonnement — eller i det minste overskriftene.";
+}
+
+/* ---------- View: over time ---------- */
+
+function renderOverTime() {
+  const canvas = document.getElementById("overtime-chart");
+  const emptyMsg = document.getElementById("overtime-empty");
+
+  const anyData = OFFICES.some((o) => apWeeksData[o.id].length || mbWeeksData[o.id].length);
+  if (!anyData) {
+    canvas.style.display = "none";
+    emptyMsg.hidden = false;
+    return;
+  }
+  canvas.style.display = "";
+  emptyMsg.hidden = true;
+
+  // Union of week labels across every office/quiz, sorted numerically.
+  const weekSet = new Set();
+  OFFICES.forEach((o) => {
+    apWeeksData[o.id].forEach((w) => weekSet.add(w.week));
+    mbWeeksData[o.id].forEach((w) => weekSet.add(w.week));
+  });
+  const weeks = [...weekSet].sort((a, b) => Number(a) - Number(b));
+
+  const datasets = [];
+  OFFICES.forEach((o) => {
+    const apByWeek = new Map(apWeeksData[o.id].map((w) => [w.week, averageOf(w.days)]));
+    const mbByWeek = new Map(mbWeeksData[o.id].map((w) => [w.week, w.score]));
+    const apSeries = weeks.map((w) => (apByWeek.has(w) ? round1(apByWeek.get(w)) : null));
+    const mbSeries = weeks.map((w) => (mbByWeek.has(w) ? mbByWeek.get(w) : null));
+    const borderDash = o.id === "bergen" ? [6, 4] : [];
+
+    datasets.push({
+      label: `Aftenposten \u2013 ${o.label}`,
+      data: apSeries,
+      borderColor: THEME.red,
+      backgroundColor: THEME.red,
+      borderDash,
+      pointRadius: 3,
+      pointHoverRadius: 5,
+      borderWidth: 2,
+      tension: 0.25,
+      spanGaps: true,
+      yAxisID: "yAP",
+    });
+    datasets.push({
+      label: `Morgenbladet \u2013 ${o.label}`,
+      data: mbSeries,
+      borderColor: THEME.gold,
+      backgroundColor: THEME.gold,
+      borderDash,
+      pointRadius: 3,
+      pointHoverRadius: 5,
+      borderWidth: 2,
+      tension: 0.25,
+      spanGaps: true,
+      yAxisID: "yMB",
+    });
+  });
+
+  new Chart(canvas.getContext("2d"), {
+    type: "line",
+    data: {
+      labels: weeks.map((w) => `U${w}`),
+      datasets,
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { display: false }, // shown via .legend-row instead
+        tooltip: {
+          backgroundColor: THEME.ink,
+          titleFont: { family: "Special Elite", size: 11 },
+          bodyFont: { family: "Special Elite", size: 12, weight: "600" },
+          padding: 8,
+        },
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: THEME.inkSoft, font: { family: "Special Elite", size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 },
+        },
+        yAP: {
+          position: "left",
+          beginAtZero: true,
+          grid: { color: THEME.rule },
+          border: { display: false },
+          ticks: { color: THEME.red, font: { family: "Special Elite", size: 10 } },
+          title: { display: true, text: "Aftenposten", color: THEME.red, font: { family: "Special Elite", size: 10 } },
+        },
+        yMB: {
+          position: "right",
+          beginAtZero: true,
+          max: MB_MAX,
+          grid: { display: false },
+          border: { display: false },
+          ticks: { color: THEME.gold, font: { family: "Special Elite", size: 10 } },
+          title: { display: true, text: "Morgenbladet", color: THEME.gold, font: { family: "Special Elite", size: 10 } },
+        },
+      },
+    },
+  });
+}
+
+function round1(n) {
+  return n === null ? null : Math.round(n * 10) / 10;
+}
+
+/* ---------- Masthead date/edition ---------- */
+
+function setEdition() {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString("nb-NO", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  document.getElementById("edition-date").textContent = dateStr;
+
+  const startOfYear = new Date(now.getFullYear(), 0, 1);
+  const dayOfYear = Math.floor((now - startOfYear) / 86400000) + 1;
+  document.getElementById("edition-number").textContent =
+    `No. ${String(dayOfYear).padStart(3, "0")}`;
+
+  const quote = QUOTES[dayOfYear % QUOTES.length];
+  document.getElementById("masthead-quote").textContent = `${quote.q} \u2014 ${quote.a}`;
+}
+
+function showStatus(message) {
+  const el = document.getElementById("status-line");
+  el.textContent = message;
+  el.hidden = false;
 }
