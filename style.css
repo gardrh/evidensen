@@ -281,19 +281,54 @@ main {
   border-bottom: 2px solid var(--rule);
 }
 
-.office-panel + .office-panel {
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px dashed var(--rule);
-}
-
-.office-panel__label {
+.office-panel__label,
+.stat-col__label {
   font-family: var(--font-mono);
   font-size: 0.8rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--ink-soft);
   margin: 0 0 8px;
+  text-align: center;
+}
+
+.legend-row--compact {
+  margin: 4px 0 12px;
+}
+
+.stat-columns,
+.score-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.stat-col {
+  text-align: center;
+}
+.stat-col .stat-row {
+  margin-top: 0;
+}
+.stat-col .record-badge {
+  margin-top: 10px;
+}
+
+.score-col {
+  text-align: center;
+  background: var(--paper-raised);
+  border: 1px solid var(--ink-soft);
+  box-shadow: 3px 3px 0 rgba(43,32,19,0.08);
+  border-radius: var(--radius);
+  padding: 16px 10px;
+}
+
+.score-big--compact .score-big__num {
+  font-size: clamp(2.2rem, 9vw, 3.2rem);
+}
+.score-verdict--compact {
+  font-size: 0.92rem;
+  margin-top: 10px;
 }
 
 .week-tag {
@@ -323,7 +358,6 @@ main {
 .week-nav__btn:disabled { opacity: 0.3; cursor: default; }
 
 .record-badge {
-  display: inline-block;
   font-family: var(--font-mono);
   font-size: 0.85rem;
   color: var(--press-red);
@@ -332,6 +366,7 @@ main {
   transform: rotate(-4deg);
   margin: 8px 0 0;
 }
+.record-badge:not([hidden]) { display: inline-block; }
 
 .badge-row {
   display: flex;
@@ -342,13 +377,13 @@ main {
 }
 
 .streak-badge {
-  display: inline-block;
   font-family: var(--font-mono);
   font-size: 0.85rem;
   color: var(--mustard);
   border: 1px solid var(--mustard);
   padding: 4px 11px;
 }
+.streak-badge:not([hidden]) { display: inline-block; }
 
 /* ---------- Stat row ---------- */
 
