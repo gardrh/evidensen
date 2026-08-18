@@ -281,6 +281,21 @@ main {
   border-bottom: 2px solid var(--rule);
 }
 
+.office-panel + .office-panel {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px dashed var(--rule);
+}
+
+.office-panel__label {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: 0 0 8px;
+}
+
 .week-tag {
   font-family: var(--font-mono);
   font-size: 0.95rem;
@@ -475,6 +490,17 @@ main {
   width: 10px;
   height: 10px;
   border-radius: 50%;
+}
+
+.legend-chip__line {
+  width: 18px !important;
+  height: 0 !important;
+  border-radius: 0 !important;
+  border-top-width: 2px;
+  border-top-style: solid;
+}
+.legend-chip__line--dashed {
+  border-top-style: dashed;
 }
 
 /* ---------- Værmelding ---------- */
