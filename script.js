@@ -1,18 +1,26 @@
 /* =========================================================
    Kontorquizen — config
 
-   1. Open your Google Sheet.
-   2. Share ▸ General access ▸ "Anyone with the link" ▸ Viewer.
-   3. Copy the long ID from the sheet's URL:
-      https://docs.google.com/spreadsheets/d/  >>THIS_PART<<  /edit
-   4. If your data isn't on the first tab, open that tab and copy the
-      gid= number from the URL. First tab is usually gid=0.
+   Two office tabs in the same Google Sheet, same column layout:
+     - Oslo:   gid 0 (the original tab)
+     - Bergen: gid 1635601830
+
+   Both tabs are expected to share the exact column layout below.
+   Sharing settings: Share ▸ General access ▸ "Anyone with the link"
+   ▸ Viewer, same as before — applies to the whole spreadsheet.
    ========================================================= */
 
 const SHEET_ID = "1dhbJuSthEbjoDJhrP5NF6FmgeKiSocucrFgnc0p5aVU";
-const GID = "0";
+const GID_OSLO = "0";
+const GID_BERGEN = "1635601830";
 
-const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}`;
+const CSV_URL_OSLO = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID_OSLO}`;
+const CSV_URL_BERGEN = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID_BERGEN}`;
+
+const OFFICES = [
+  { id: "oslo", label: "Oslo", csvUrl: CSV_URL_OSLO },
+  { id: "bergen", label: "Bergen", csvUrl: CSV_URL_BERGEN },
+];
 
 // Column layout, matching the sheet screenshot:
 // A: Uke | B-F: Man-Fre (Aftenposten)   ...gap...   I: Uke | J: Score (Morgenbladet)
@@ -42,14 +50,14 @@ const THEME = {
   paperRaised: "#EFE7CE",
 };
 
-// Module-level state so the prev/next buttons can re-render without
-// re-fetching the sheet. Aftenposten and Morgenbladet browse
-// independently, since one quiz may have more recent data than the other.
-let apWeeksData = [];
-let mbWeeksData = [];
-let apIndex = -1;
-let mbIndex = -1;
-let apChartInstance = null;
+// Module-level state, keyed by office id, so the prev/next buttons can
+// re-render without re-fetching the sheet. Each office/quiz combo
+// browses weeks independently.
+let apWeeksData = { oslo: [], bergen: [] };
+let mbWeeksData = { oslo: [], bergen: [] };
+let apIndex = { oslo: -1, bergen: -1 };
+let mbIndex = { oslo: -1, bergen: -1 };
+let apChartInstance = { oslo: null, bergen: null };
 
 document.addEventListener("DOMContentLoaded", init);
 
@@ -61,43 +69,56 @@ async function init() {
   renderWikiNews();
   renderWeather();
 
-  let rows;
-  try {
-    rows = await fetchSheet();
-  } catch (err) {
+  const results = await Promise.allSettled(OFFICES.map((o) => fetchSheet(o.csvUrl)));
+
+  let anySuccess = false;
+  results.forEach((result, i) => {
+    const officeId = OFFICES[i].id;
+    if (result.status === "fulfilled") {
+      anySuccess = true;
+      const dataRows = result.value.slice(DATA_START_ROW);
+      apWeeksData[officeId] = extractAftenpostenWeeks(dataRows);
+      mbWeeksData[officeId] = extractMorgenbladetWeeks(dataRows);
+    } else {
+      console.error(`Kunne ikke hente ${OFFICES[i].label}-arket:`, result.reason);
+      apWeeksData[officeId] = [];
+      mbWeeksData[officeId] = [];
+    }
+    apIndex[officeId] = apWeeksData[officeId].length - 1;
+    mbIndex[officeId] = mbWeeksData[officeId].length - 1;
+  });
+
+  if (!anySuccess) {
     showStatus(
-      "Kunne ikke hente data fra arket. Sjekk at det er delt med \u00abAlle med lenken\u00bb, og at SHEET_ID i script.js er riktig."
+      "Kunne ikke hente data fra arkene. Sjekk at de er delt med \u00abAlle med lenken\u00bb, og at SHEET_ID i script.js er riktig."
     );
-    console.error(err);
     return;
   }
 
-  const dataRows = rows.slice(DATA_START_ROW);
-  apWeeksData = extractAftenpostenWeeks(dataRows);
-  mbWeeksData = extractMorgenbladetWeeks(dataRows);
-  apIndex = apWeeksData.length - 1;
-  mbIndex = mbWeeksData.length - 1;
-
   setupWeekNav();
-  renderAftenpostenWeek();
-  renderMorgenbladetWeek();
-  renderOverTime(apWeeksData, mbWeeksData);
+  OFFICES.forEach((o) => {
+    renderAftenpostenWeek(o.id);
+    renderMorgenbladetWeek(o.id);
+  });
+  renderOverTime();
 }
 
 /* ---------- Week navigation (prev/next) ---------- */
 
 function setupWeekNav() {
-  document.getElementById("ap-prev").addEventListener("click", () => {
-    if (apIndex > 0) { apIndex--; renderAftenpostenWeek(); }
-  });
-  document.getElementById("ap-next").addEventListener("click", () => {
-    if (apIndex < apWeeksData.length - 1) { apIndex++; renderAftenpostenWeek(); }
-  });
-  document.getElementById("mb-prev").addEventListener("click", () => {
-    if (mbIndex > 0) { mbIndex--; renderMorgenbladetWeek(); }
-  });
-  document.getElementById("mb-next").addEventListener("click", () => {
-    if (mbIndex < mbWeeksData.length - 1) { mbIndex++; renderMorgenbladetWeek(); }
+  OFFICES.forEach((o) => {
+    document.getElementById(`ap-prev-${o.id}`).addEventListener("click", () => {
+      if (apIndex[o.id] > 0) { apIndex[o.id]--; renderAftenpostenWeek(o.id); }
+    });
+    document.getElementById(`ap-next-${o.id}`).addEventListener("click", () => {
+      if (apIndex[o.id] < apWeeksData[o.id].length - 1) { apIndex[o.id]++; renderAftenpostenWeek(o.id); }
+    });
+    document.getElementById(`mb-prev-${o.id}`).addEventListener("click", () => {
+      if (mbIndex[o.id] > 0) { mbIndex[o.id]--; renderMorgenbladetWeek(o.id); }
+    });
+    document.getElementById(`mb-next-${o.id}`).addEventListener("click", () => {
+      if (mbIndex[o.id] < mbWeeksData[o.id].length - 1) { mbIndex[o.id]++; renderMorgenbladetWeek(o.id); }
+    });
   });
 }
 
@@ -311,8 +332,8 @@ function setupTabs() {
 
 /* ---------- Fetch + parse ---------- */
 
-async function fetchSheet() {
-  const res = await fetch(CSV_URL, { cache: "no-store" });
+async function fetchSheet(url) {
+  const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`Sheet fetch failed: ${res.status}`);
   const text = await res.text();
   return parseCSV(text);
@@ -379,22 +400,25 @@ function extractMorgenbladetWeeks(rows) {
 
 /* ---------- View: this week ---------- */
 
-function renderAftenpostenWeek() {
-  const tag = document.getElementById("ap-week-tag");
-  const canvas = document.getElementById("ap-week-chart");
-  const emptyMsg = document.getElementById("ap-week-empty");
-  const statsEl = document.getElementById("ap-week-stats");
-  const prevBtn = document.getElementById("ap-prev");
-  const nextBtn = document.getElementById("ap-next");
+function renderAftenpostenWeek(officeId) {
+  const tag = document.getElementById(`ap-week-tag-${officeId}`);
+  const canvas = document.getElementById(`ap-week-chart-${officeId}`);
+  const emptyMsg = document.getElementById(`ap-week-empty-${officeId}`);
+  const statsEl = document.getElementById(`ap-week-stats-${officeId}`);
+  const prevBtn = document.getElementById(`ap-prev-${officeId}`);
+  const nextBtn = document.getElementById(`ap-next-${officeId}`);
 
-  prevBtn.disabled = apIndex <= 0;
-  nextBtn.disabled = apIndex >= apWeeksData.length - 1;
+  const weeks = apWeeksData[officeId];
+  const idx = apIndex[officeId];
 
-  const current = apIndex >= 0 ? apWeeksData[apIndex] : null;
+  prevBtn.disabled = idx <= 0;
+  nextBtn.disabled = idx >= weeks.length - 1;
 
-  if (apChartInstance) {
-    apChartInstance.destroy();
-    apChartInstance = null;
+  const current = idx >= 0 ? weeks[idx] : null;
+
+  if (apChartInstance[officeId]) {
+    apChartInstance[officeId].destroy();
+    apChartInstance[officeId] = null;
   }
 
   if (!current) {
@@ -408,9 +432,9 @@ function renderAftenpostenWeek() {
   emptyMsg.hidden = true;
   tag.textContent = `Uke ${current.week}`;
 
-  const recordBadge = document.getElementById("ap-record");
+  const recordBadge = document.getElementById(`ap-record-${officeId}`);
   const currentAvg = averageOf(current.days);
-  const bestAvg = apWeeksData.length > 1 ? Math.max(...apWeeksData.map((w) => averageOf(w.days) ?? -Infinity)) : null;
+  const bestAvg = weeks.length > 1 ? Math.max(...weeks.map((w) => averageOf(w.days) ?? -Infinity)) : null;
   recordBadge.hidden = !(bestAvg !== null && currentAvg !== null && currentAvg >= bestAvg);
 
   const played = current.days.filter((d) => d !== null);
@@ -421,7 +445,7 @@ function renderAftenpostenWeek() {
   statsEl.querySelector('[data-stat="avg"]').textContent = played.length ? avg.toFixed(1) : "–";
   statsEl.querySelector('[data-stat="days"]').textContent = `${played.length}/5`;
 
-  apChartInstance = new Chart(canvas.getContext("2d"), {
+  apChartInstance[officeId] = new Chart(canvas.getContext("2d"), {
     type: "bar",
     data: {
       labels: COLS.apDayLabels,
@@ -464,17 +488,20 @@ function renderAftenpostenWeek() {
   });
 }
 
-function renderMorgenbladetWeek() {
-  const tag = document.getElementById("mb-week-tag");
-  const numEl = document.getElementById("mb-score-num");
-  const verdictEl = document.getElementById("mb-verdict");
-  const prevBtn = document.getElementById("mb-prev");
-  const nextBtn = document.getElementById("mb-next");
+function renderMorgenbladetWeek(officeId) {
+  const tag = document.getElementById(`mb-week-tag-${officeId}`);
+  const numEl = document.getElementById(`mb-score-num-${officeId}`);
+  const verdictEl = document.getElementById(`mb-verdict-${officeId}`);
+  const prevBtn = document.getElementById(`mb-prev-${officeId}`);
+  const nextBtn = document.getElementById(`mb-next-${officeId}`);
 
-  prevBtn.disabled = mbIndex <= 0;
-  nextBtn.disabled = mbIndex >= mbWeeksData.length - 1;
+  const weeks = mbWeeksData[officeId];
+  const idx = mbIndex[officeId];
 
-  const current = mbIndex >= 0 ? mbWeeksData[mbIndex] : null;
+  prevBtn.disabled = idx <= 0;
+  nextBtn.disabled = idx >= weeks.length - 1;
+
+  const current = idx >= 0 ? weeks[idx] : null;
 
   if (!current) {
     tag.textContent = "Ingen data ennå";
@@ -487,12 +514,12 @@ function renderMorgenbladetWeek() {
   numEl.textContent = current.score;
   verdictEl.textContent = moodMessage(current.score);
 
-  const recordBadge = document.getElementById("mb-record");
-  const bestScore = mbWeeksData.length > 1 ? Math.max(...mbWeeksData.map((w) => w.score)) : null;
+  const recordBadge = document.getElementById(`mb-record-${officeId}`);
+  const bestScore = weeks.length > 1 ? Math.max(...weeks.map((w) => w.score)) : null;
   recordBadge.hidden = !(bestScore !== null && current.score >= bestScore);
 
-  const streakBadge = document.getElementById("mb-streak");
-  const streak = computeMbStreak(mbIndex);
+  const streakBadge = document.getElementById(`mb-streak-${officeId}`);
+  const streak = computeMbStreak(officeId, idx);
   if (streak >= 2) {
     streakBadge.hidden = false;
     streakBadge.textContent = `\u{1F525} ${streak} uker over middels`;
@@ -501,10 +528,11 @@ function renderMorgenbladetWeek() {
   }
 }
 
-function computeMbStreak(uptoIndex) {
+function computeMbStreak(officeId, uptoIndex) {
+  const weeks = mbWeeksData[officeId];
   let streak = 0;
   for (let i = uptoIndex; i >= 0; i--) {
-    if (mbWeeksData[i].score >= MB_STREAK_THRESHOLD) streak++;
+    if (weeks[i].score >= MB_STREAK_THRESHOLD) streak++;
     else break;
   }
   return streak;
@@ -526,65 +554,68 @@ function moodMessage(score) {
 
 /* ---------- View: over time ---------- */
 
-function renderOverTime(apWeeks, mbWeeks) {
+function renderOverTime() {
   const canvas = document.getElementById("overtime-chart");
   const emptyMsg = document.getElementById("overtime-empty");
 
-  if (!apWeeks.length && !mbWeeks.length) {
+  const anyData = OFFICES.some((o) => apWeeksData[o.id].length || mbWeeksData[o.id].length);
+  if (!anyData) {
     canvas.style.display = "none";
     emptyMsg.hidden = false;
     return;
   }
+  canvas.style.display = "";
+  emptyMsg.hidden = true;
 
-  // Union of week labels, sorted numerically, oldest to newest.
-  const weekSet = new Set([
-    ...apWeeks.map((w) => w.week),
-    ...mbWeeks.map((w) => w.week),
-  ]);
+  // Union of week labels across every office/quiz, sorted numerically.
+  const weekSet = new Set();
+  OFFICES.forEach((o) => {
+    apWeeksData[o.id].forEach((w) => weekSet.add(w.week));
+    mbWeeksData[o.id].forEach((w) => weekSet.add(w.week));
+  });
   const weeks = [...weekSet].sort((a, b) => Number(a) - Number(b));
 
-  const apByWeek = new Map(
-    apWeeks.map((w) => {
-      const played = w.days.filter((d) => d !== null);
-      const avg = played.length ? played.reduce((a, b) => a + b, 0) / played.length : null;
-      return [w.week, avg];
-    })
-  );
-  const mbByWeek = new Map(mbWeeks.map((w) => [w.week, w.score]));
+  const datasets = [];
+  OFFICES.forEach((o) => {
+    const apByWeek = new Map(apWeeksData[o.id].map((w) => [w.week, averageOf(w.days)]));
+    const mbByWeek = new Map(mbWeeksData[o.id].map((w) => [w.week, w.score]));
+    const apSeries = weeks.map((w) => (apByWeek.has(w) ? round1(apByWeek.get(w)) : null));
+    const mbSeries = weeks.map((w) => (mbByWeek.has(w) ? mbByWeek.get(w) : null));
+    const borderDash = o.id === "bergen" ? [6, 4] : [];
 
-  const apSeries = weeks.map((w) => (apByWeek.has(w) ? round1(apByWeek.get(w)) : null));
-  const mbSeries = weeks.map((w) => (mbByWeek.has(w) ? mbByWeek.get(w) : null));
+    datasets.push({
+      label: `Aftenposten \u2013 ${o.label}`,
+      data: apSeries,
+      borderColor: THEME.red,
+      backgroundColor: THEME.red,
+      borderDash,
+      pointRadius: 3,
+      pointHoverRadius: 5,
+      borderWidth: 2,
+      tension: 0.25,
+      spanGaps: true,
+      yAxisID: "yAP",
+    });
+    datasets.push({
+      label: `Morgenbladet \u2013 ${o.label}`,
+      data: mbSeries,
+      borderColor: THEME.gold,
+      backgroundColor: THEME.gold,
+      borderDash,
+      pointRadius: 3,
+      pointHoverRadius: 5,
+      borderWidth: 2,
+      tension: 0.25,
+      spanGaps: true,
+      yAxisID: "yMB",
+    });
+  });
 
   new Chart(canvas.getContext("2d"), {
     type: "line",
     data: {
       labels: weeks.map((w) => `U${w}`),
-      datasets: [
-        {
-          label: "Aftenposten (ukesnitt)",
-          data: apSeries,
-          borderColor: THEME.red,
-          backgroundColor: THEME.red,
-          pointRadius: 3,
-          pointHoverRadius: 5,
-          borderWidth: 2,
-          tension: 0.25,
-          spanGaps: true,
-          yAxisID: "yAP",
-        },
-        {
-          label: "Morgenbladet (poeng)",
-          data: mbSeries,
-          borderColor: THEME.gold,
-          backgroundColor: THEME.gold,
-          pointRadius: 3,
-          pointHoverRadius: 5,
-          borderWidth: 2,
-          tension: 0.25,
-          spanGaps: true,
-          yAxisID: "yMB",
-        },
-      ],
+      datasets,
     },
     options: {
       responsive: true,
