@@ -447,6 +447,7 @@ function renderAftenpostenWeek() {
     canvas.style.display = "none";
     emptyMsg.hidden = false;
     OFFICES.forEach((o) => renderOfficeAftenpostenStats(o.id, null));
+    renderLeaderLine("ap-leader", null, null);
     return;
   }
 
@@ -459,6 +460,12 @@ function renderAftenpostenWeek() {
     entries[o.id] = findWeekEntry(apWeeksData[o.id], weekLabel);
     renderOfficeAftenpostenStats(o.id, entries[o.id]);
   });
+
+  renderLeaderLine(
+    "ap-leader",
+    entries.oslo ? averageOf(entries.oslo.days) : null,
+    entries.bergen ? averageOf(entries.bergen.days) : null
+  );
 
   const emptyDays = [null, null, null, null, null];
 
@@ -518,14 +525,11 @@ function renderAftenpostenWeek() {
 
 function renderOfficeAftenpostenStats(officeId, entry) {
   const statsEl = document.getElementById(`ap-week-stats-${officeId}`);
-  const recordBadge = document.getElementById(`ap-record-${officeId}`);
-  const weeks = apWeeksData[officeId];
 
   if (!entry) {
     statsEl.querySelector('[data-stat="sum"]').textContent = "–";
     statsEl.querySelector('[data-stat="avg"]').textContent = "–";
     statsEl.querySelector('[data-stat="days"]').textContent = "–";
-    recordBadge.hidden = true;
     return;
   }
 
@@ -536,10 +540,24 @@ function renderOfficeAftenpostenStats(officeId, entry) {
   statsEl.querySelector('[data-stat="sum"]').textContent = played.length ? sum : "–";
   statsEl.querySelector('[data-stat="avg"]').textContent = played.length ? avg.toFixed(1) : "–";
   statsEl.querySelector('[data-stat="days"]').textContent = `${played.length}/5`;
+}
 
-  const currentAvg = averageOf(entry.days);
-  const bestAvg = weeks.length > 1 ? Math.max(...weeks.map((w) => averageOf(w.days) ?? -Infinity)) : null;
-  recordBadge.hidden = !(bestAvg !== null && currentAvg !== null && currentAvg >= bestAvg);
+function renderLeaderLine(elId, oslo, bergen) {
+  const el = document.getElementById(elId);
+  if (oslo === null && bergen === null) {
+    el.hidden = true;
+    return;
+  }
+  el.hidden = false;
+  if (oslo === null || bergen === null) {
+    el.textContent = "Ingen sammenligning denne uken \u2013 én av kontorene mangler resultater.";
+  } else if (oslo > bergen) {
+    el.textContent = "Oslo leder, Bergen henger etter.";
+  } else if (bergen > oslo) {
+    el.textContent = "Bergen leder, Oslo henger etter.";
+  } else {
+    el.textContent = "Uavgjort mellom Oslo og Bergen denne uken.";
+  }
 }
 
 function renderMorgenbladetWeek() {
@@ -555,36 +573,39 @@ function renderMorgenbladetWeek() {
   if (!weekLabel) {
     tag.textContent = "Ingen data ennå";
     OFFICES.forEach((o) => renderOfficeMorgenbladetScore(o.id, null));
+    renderLeaderLine("mb-leader", null, null);
     return;
   }
 
   tag.textContent = `Uke ${weekLabel}`;
+  const entries = {};
   OFFICES.forEach((o) => {
-    const entry = findWeekEntry(mbWeeksData[o.id], weekLabel);
-    renderOfficeMorgenbladetScore(o.id, entry);
+    entries[o.id] = findWeekEntry(mbWeeksData[o.id], weekLabel);
+    renderOfficeMorgenbladetScore(o.id, entries[o.id]);
   });
+
+  renderLeaderLine(
+    "mb-leader",
+    entries.oslo ? entries.oslo.score : null,
+    entries.bergen ? entries.bergen.score : null
+  );
 }
 
 function renderOfficeMorgenbladetScore(officeId, entry) {
   const numEl = document.getElementById(`mb-score-num-${officeId}`);
   const verdictEl = document.getElementById(`mb-verdict-${officeId}`);
-  const recordBadge = document.getElementById(`mb-record-${officeId}`);
   const streakBadge = document.getElementById(`mb-streak-${officeId}`);
   const weeks = mbWeeksData[officeId];
 
   if (!entry) {
     numEl.textContent = "–";
     verdictEl.textContent = "Ingen resultat denne uken.";
-    recordBadge.hidden = true;
     streakBadge.hidden = true;
     return;
   }
 
   numEl.textContent = entry.score;
   verdictEl.textContent = moodMessage(entry.score);
-
-  const bestScore = weeks.length > 1 ? Math.max(...weeks.map((w) => w.score)) : null;
-  recordBadge.hidden = !(bestScore !== null && entry.score >= bestScore);
 
   const idxInOfficeWeeks = weeks.findIndex((w) => w.week === entry.week);
   const streak = computeMbStreak(officeId, idxInOfficeWeeks);
