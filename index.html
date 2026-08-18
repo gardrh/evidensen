@@ -62,52 +62,47 @@
           </div>
         </div>
 
-        <div class="office-panel" id="ap-panel-oslo">
-          <p class="office-panel__label">Oslo</p>
-          <div class="week-nav">
-            <button class="week-nav__btn" id="ap-prev-oslo" aria-label="Forrige uke">&#8249;</button>
-            <p class="week-tag" id="ap-week-tag-oslo">—</p>
-            <button class="week-nav__btn" id="ap-next-oslo" aria-label="Neste uke">&#8250;</button>
-          </div>
-          <span class="record-badge" id="ap-record-oslo" hidden>&#127942; Personlig rekord!</span>
-
-          <div class="chart-frame chart-frame--week">
-            <canvas id="ap-week-chart-oslo" role="img" aria-label="Denne ukens Aftenposten-resultater for Oslo, dag for dag"></canvas>
-            <p class="chart-empty" id="ap-week-empty-oslo" hidden>Ingen resultater for denne uken ennå.</p>
-          </div>
-
-          <div class="stat-row" id="ap-week-stats-oslo">
-            <div class="stat"><span class="stat__value" data-stat="sum">–</span><span class="stat__label">Sum</span></div>
-            <div class="stat"><span class="stat__value" data-stat="avg">–</span><span class="stat__label">Snitt</span></div>
-            <div class="stat"><span class="stat__value" data-stat="days">–</span><span class="stat__label">Dager spilt</span></div>
-          </div>
+        <div class="week-nav">
+          <button class="week-nav__btn" id="ap-prev" aria-label="Forrige uke">&#8249;</button>
+          <p class="week-tag" id="ap-week-tag">—</p>
+          <button class="week-nav__btn" id="ap-next" aria-label="Neste uke">&#8250;</button>
         </div>
 
-        <div class="office-panel" id="ap-panel-bergen">
-          <p class="office-panel__label">Bergen</p>
-          <div class="week-nav">
-            <button class="week-nav__btn" id="ap-prev-bergen" aria-label="Forrige uke">&#8249;</button>
-            <p class="week-tag" id="ap-week-tag-bergen">—</p>
-            <button class="week-nav__btn" id="ap-next-bergen" aria-label="Neste uke">&#8250;</button>
-          </div>
-          <span class="record-badge" id="ap-record-bergen" hidden>&#127942; Personlig rekord!</span>
+        <div class="legend-row legend-row--compact">
+          <span class="legend-chip"><i style="background:#7B2D26"></i>Oslo</span>
+          <span class="legend-chip"><i style="background:#3B5A66"></i>Bergen</span>
+        </div>
 
-          <div class="chart-frame chart-frame--week">
-            <canvas id="ap-week-chart-bergen" role="img" aria-label="Denne ukens Aftenposten-resultater for Bergen, dag for dag"></canvas>
-            <p class="chart-empty" id="ap-week-empty-bergen" hidden>Ingen resultater for denne uken ennå.</p>
-          </div>
+        <div class="chart-frame chart-frame--week">
+          <canvas id="ap-week-chart" role="img" aria-label="Denne ukens Aftenposten-resultater, Oslo mot Bergen, dag for dag"></canvas>
+          <p class="chart-empty" id="ap-week-empty" hidden>Ingen resultater for denne uken ennå.</p>
+        </div>
 
-          <div class="stat-row" id="ap-week-stats-bergen">
-            <div class="stat"><span class="stat__value" data-stat="sum">–</span><span class="stat__label">Sum</span></div>
-            <div class="stat"><span class="stat__value" data-stat="avg">–</span><span class="stat__label">Snitt</span></div>
-            <div class="stat"><span class="stat__value" data-stat="days">–</span><span class="stat__label">Dager spilt</span></div>
+        <div class="stat-columns">
+          <div class="stat-col">
+            <p class="stat-col__label">Oslo</p>
+            <div class="stat-row" id="ap-week-stats-oslo">
+              <div class="stat"><span class="stat__value" data-stat="sum">–</span><span class="stat__label">Sum</span></div>
+              <div class="stat"><span class="stat__value" data-stat="avg">–</span><span class="stat__label">Snitt</span></div>
+              <div class="stat"><span class="stat__value" data-stat="days">–</span><span class="stat__label">Dager</span></div>
+            </div>
+            <span class="record-badge" id="ap-record-oslo" hidden>&#127942; Rekord!</span>
+          </div>
+          <div class="stat-col">
+            <p class="stat-col__label">Bergen</p>
+            <div class="stat-row" id="ap-week-stats-bergen">
+              <div class="stat"><span class="stat__value" data-stat="sum">–</span><span class="stat__label">Sum</span></div>
+              <div class="stat"><span class="stat__value" data-stat="avg">–</span><span class="stat__label">Snitt</span></div>
+              <div class="stat"><span class="stat__value" data-stat="days">–</span><span class="stat__label">Dager</span></div>
+            </div>
+            <span class="record-badge" id="ap-record-bergen" hidden>&#127942; Rekord!</span>
           </div>
         </div>
       </div>
 
       <div class="gutter" aria-hidden="true"></div>
 
-      <!-- Morgenbladet: this week, score out of 20 + verdict -->
+      <!-- Morgenbladet: this week, score out of 20 + verdict, Oslo vs Bergen -->
       <div class="column column--weekly">
         <div class="column__head">
           <div class="column__logo-plate">
@@ -119,43 +114,34 @@
           </div>
         </div>
 
-        <div class="office-panel" id="mb-panel-oslo">
-          <p class="office-panel__label">Oslo</p>
-          <div class="week-nav">
-            <button class="week-nav__btn" id="mb-prev-oslo" aria-label="Forrige uke">&#8249;</button>
-            <p class="week-tag" id="mb-week-tag-oslo">—</p>
-            <button class="week-nav__btn" id="mb-next-oslo" aria-label="Neste uke">&#8250;</button>
-          </div>
+        <div class="week-nav">
+          <button class="week-nav__btn" id="mb-prev" aria-label="Forrige uke">&#8249;</button>
+          <p class="week-tag" id="mb-week-tag">—</p>
+          <button class="week-nav__btn" id="mb-next" aria-label="Neste uke">&#8250;</button>
+        </div>
 
-          <div class="score-frame" id="mb-score-frame-oslo">
-            <div class="score-big">
+        <div class="score-columns">
+          <div class="score-col">
+            <p class="stat-col__label">Oslo</p>
+            <div class="score-big score-big--compact">
               <span class="score-big__num" id="mb-score-num-oslo">–</span>
               <span class="score-big__den">/ 20</span>
             </div>
-            <p class="score-verdict" id="mb-verdict-oslo">Venter på denne ukens resultat …</p>
+            <p class="score-verdict score-verdict--compact" id="mb-verdict-oslo">Venter på denne ukens resultat …</p>
             <div class="badge-row">
-              <span class="record-badge" id="mb-record-oslo" hidden>&#127942; Personlig rekord!</span>
+              <span class="record-badge" id="mb-record-oslo" hidden>&#127942; Rekord!</span>
               <span class="streak-badge" id="mb-streak-oslo" hidden></span>
             </div>
           </div>
-        </div>
-
-        <div class="office-panel" id="mb-panel-bergen">
-          <p class="office-panel__label">Bergen</p>
-          <div class="week-nav">
-            <button class="week-nav__btn" id="mb-prev-bergen" aria-label="Forrige uke">&#8249;</button>
-            <p class="week-tag" id="mb-week-tag-bergen">—</p>
-            <button class="week-nav__btn" id="mb-next-bergen" aria-label="Neste uke">&#8250;</button>
-          </div>
-
-          <div class="score-frame" id="mb-score-frame-bergen">
-            <div class="score-big">
-              <span class="score-big__num" id="mb-score-num-bergen">–</span>
+          <div class="score-col">
+            <p class="stat-col__label">Bergen</p>
+            <div class="score-big score-big--compact">
+              <span class="score-big__num" id="mb-score-num-bergen" style="color:#3B5A66">–</span>
               <span class="score-big__den">/ 20</span>
             </div>
-            <p class="score-verdict" id="mb-verdict-bergen">Venter på denne ukens resultat …</p>
+            <p class="score-verdict score-verdict--compact" id="mb-verdict-bergen">Venter på denne ukens resultat …</p>
             <div class="badge-row">
-              <span class="record-badge" id="mb-record-bergen" hidden>&#127942; Personlig rekord!</span>
+              <span class="record-badge" id="mb-record-bergen" hidden>&#127942; Rekord!</span>
               <span class="streak-badge" id="mb-streak-bergen" hidden></span>
             </div>
           </div>
