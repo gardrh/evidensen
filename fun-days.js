@@ -41,13 +41,25 @@ const FUN_DAYS = [
 
   // Navnedager (Norwegian name days), verified against Almanakkforlaget-
   // based calendars (klikk.no/Navneguiden, Store norske leksikon).
+  { type: "fixed", month: 1, day: 5, name: "navnedagen til Hanna" },
+  { type: "fixed", month: 2, day: 2, name: "navnedagen til Jostein" },
+  { type: "fixed", month: 2, day: 26, name: "navnedagen til Inger" },
+  { type: "fixed", month: 3, day: 20, name: "navnedagen til Joachim" },
   { type: "fixed", month: 4, day: 4, name: "navnedagen til Nina" },
+  { type: "fixed", month: 4, day: 8, name: "navnedagen til Asle" },
+  { type: "fixed", month: 4, day: 16, name: "navnedagen til Magnus" },
   { type: "fixed", month: 4, day: 23, name: "navnedagen til Georg" },
+  { type: "fixed", month: 5, day: 13, name: "navnedagen til Line" },
   { type: "fixed", month: 5, day: 30, name: "navnedagen til Gard" },
+  { type: "fixed", month: 6, day: 12, name: "navnedagen til Sigrid" },
   { type: "fixed", month: 7, day: 3, name: "navnedagen til Andrea" },
+  { type: "fixed", month: 7, day: 22, name: "navnedagen til Malin" },
   { type: "fixed", month: 7, day: 29, name: "navnedagen til Olav" },
+  { type: "fixed", month: 8, day: 26, name: "navnedagen til Eivind" },
   { type: "fixed", month: 9, day: 6, name: "navnedagen til Siv" },
   { type: "fixed", month: 9, day: 18, name: "navnedagen til Henriette" },
+  { type: "fixed", month: 10, day: 15, name: "navnedagen til Hedda" },
+  { type: "fixed", month: 11, day: 8, name: "navnedagen til Ingvild" },
   { type: "fixed", month: 12, day: 6, name: "navnedagen til Niklas" },
 ];
 
