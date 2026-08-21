@@ -55,6 +55,7 @@ const FUN_DAYS = [
   { type: "fixed", month: 7, day: 3, name: "navnedagen til Andrea" },
   { type: "fixed", month: 7, day: 22, name: "navnedagen til Malin" },
   { type: "fixed", month: 7, day: 29, name: "navnedagen til Olav" },
+  { type: "nth-weekday", month: 8, weekday: 4, nth: 3, name: "surströmmingspremiär" },
   { type: "fixed", month: 8, day: 26, name: "navnedagen til Eivind" },
   { type: "fixed", month: 9, day: 6, name: "navnedagen til Siv" },
   { type: "fixed", month: 9, day: 18, name: "navnedagen til Henriette" },
